@@ -98,12 +98,12 @@ class CDRGrafting(Grafting):
         kabat_seq -- Kabat numbering of the sequence to be humanized
     """
 
-    # CDR's of light chain defined by Kabat
+    # CDRs of light chain defined by Kabat
     L_1 = ((24,''),(34,''))
     L_2 = ((50,''),(56,''))
     L_3 = ((89,''),(97,''))
 
-    # CDR's of heavy chain defined by Kabat
+    # CDRs of heavy chain defined by Kabat
     H_1 = ((31,''),(35,'B'))
     H_2 = ((50,''),(65,''))
     H_3 = ((95,''),(102,''))
@@ -117,7 +117,7 @@ class CDRGrafting(Grafting):
         self.graft()
 
     def find_residues_to_graft(self):
-        """Find residues at the CDR's of the sequence to be humanized and save the found residue numbers in residues_to_graft."""
+        """Find residues at the CDRs of the sequence to be humanized and save the found residue numbers in residues_to_graft."""
         mode = self.kabat_seq.kabat_list[0][0][0]
         loop_regions = [CDRGrafting.L_1, CDRGrafting.L_2, CDRGrafting.L_3]\
             if mode == 'L' else [CDRGrafting.H_1, CDRGrafting.H_2, CDRGrafting.H_3]
