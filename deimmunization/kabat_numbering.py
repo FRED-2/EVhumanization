@@ -6,6 +6,7 @@ from HTMLParser import HTMLParser
 from urllib import urlopen
 import argparse
 from Bio import SeqIO
+from collections import defaultdict
 
 html_data = []
 
@@ -18,8 +19,9 @@ class KabatNumbering():
 
     Attributes:
         sequence -- SeqRecord of sequence being numbered
-        kabat_list -- list of tuples (kabat number, residue)
-        kabat_dict -- dictionary: key = kabat number, value = residue
+        kabat_list -- list of tuples (kabat identifier, residue)
+        kabat_dict -- dictionary: key = kabat identifier as (kabat number, kabat letter),
+                                  value = residue number (starting from 1)
     """
 
     def __init__(self, sequence):
@@ -34,7 +36,16 @@ class KabatNumbering():
             sys.exit(-1)
         self._rawdata = ''.join(html_data)
         self.kabat_list = [(x[:-2],x[-1:]) for x in self._rawdata.split('\n') if not x == '']
-        self.kabat_dict = {x[0]:x[1] for x in self.kabat_list}
+        self.kabat_dict = defaultdict(lambda: -1)
+        res_num = 1
+        for kabat, res in self.kabat_list:
+            if not res == '-':
+                kabat_key = (int(kabat[1:-1]),kabat[-1]) if kabat[-1].isalpha() else (int(kabat[1:]),'')
+                self.kabat_dict[kabat_key] = res_num
+                res_num += 1
+
+    def __str__(self):
+        return 'KabatNumbering [sequence=%s, kabat_list=%s, kabat_dict=%s]' % (self.sequence, self.kabat_list, self.kabat_dict)
 
     def to_file(self, output):
         with open(output, 'w') as out_file:
