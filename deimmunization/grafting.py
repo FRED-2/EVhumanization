@@ -158,6 +158,17 @@ class SDRGrafting(Grafting):
         pass
 
 
+class ManualGrafting(Grafting):
+    """Humanize sequence by grafting of manually specified non-human residues onto the human template sequence."""
+
+    def __init__(self, sequence, template, given_residues):
+        super(ManualGrafting, self).__init__(sequence, template)
+        self.find_residues_to_graft(given_residues)
+        self.graft()
+
+    def find_residues_to_graft(self, given_residues):
+        self.residues_to_graft = [int(res_num) for res_num in given_residues.split(',')]
+
 def command_line():
     parser = argparse.ArgumentParser(description='Initial humanization of an antibody by CDR or SDR Grafting')
     parser.add_argument('--sequence', '-s',
@@ -174,6 +185,11 @@ def command_line():
         required=False,
         help='Chains of antiboy domain to be humanized (first) and of its cognate antigen (second), '
             +'e.g. DB (D: antibody chain, B: antigen chain)')
+    parser.add_argument('--manual', '-m',
+        required=False,
+        help='The non-human residues to be grafted onto the human template sequence, '
+            +'specified by a comma-separated list of residue numbers, e.g. 14,15,16,79,80 '
+            +'(residue numbers starting from 1)')
     parser.add_argument('--output', '-o',
         required=True,
         help='Output File')
@@ -188,7 +204,9 @@ def command_line():
     with open(args.sequence, 'rU') as seq_file, open(args.template, 'rU') as tem_file:
         seq_record, tem_record = SeqIO.read(seq_file, 'fasta'), SeqIO.read(tem_file, 'fasta')
 
-    if args.pdb_id is not None:
+    if args.manual is not None:
+        grafting = ManualGrafting(seq_record, tem_record, args.manual)
+    elif args.pdb_id is not None:
         grafting = SDRGrafting(seq_record, tem_record, args.pdb_id, args.chains)
         sys.exit(0)
     else:
