@@ -81,12 +81,10 @@ class Grafting(object):
 
     def to_file(self, output):
         with open(output, 'w') as out_file:
-            out_file.write('# Humanization by %s\n' % self.__class__.__name__)
-            out_file.write('>%s Non-human sequence to be humanized\n' % self.sequence.id)
-            out_file.write(str(self.sequence.seq) + '\n')
-            out_file.write('>%s Human sequence serving as template\n' % self.template.id)
-            out_file.write(str(self.template.seq) + '\n')
-            out_file.write('>%s Humanized sequence\n' % self.humanized_seq.id)
+            descr = 'Humanization by %s: ' % self.__class__.__name__
+            descr += 'fusion of non-human %s and human %s'\
+                     % (self.sequence.id, self.template.id)
+            out_file.write('>%s %s\n' % (self.humanized_seq.id, descr))
             out_file.write(str(self.humanized_seq.seq))
         print 'Humanized sequence written to %s' % output
 
