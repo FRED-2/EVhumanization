@@ -159,7 +159,11 @@ class CDRGrafting(Grafting):
 
 
 class SDRGrafting(Grafting):
-    """Humanize sequence by SDR Grafting, i.e. using structural information."""
+    """Humanize sequence by SDR Grafting, i.e. using structural information.
+
+    Additional attributes:
+        pair_dist_list: list of pairwise distances between antibody and antigen residues
+    """
 
     def __init__(self, sequence, template, pdb_id, chains, contact_threshold=6):
         super(SDRGrafting, self).__init__(sequence, template)
@@ -169,6 +173,7 @@ class SDRGrafting(Grafting):
         self.graft()
 
     def set_seq_location(self):
+        """Add the given location of the domain to be humanized to the corresponding SeqRecord."""
         try:
             bound = self.sequence.id.split('/')[-1]
             loc_feature = SeqFeature(FeatureLocation(int(bound.split('-')[0]),
@@ -180,6 +185,7 @@ class SDRGrafting(Grafting):
             exit(1)
 
     def make_contact_map_wrapper(self, pdb_id, chains):
+        """Call function to calculate pairwise distances and extract relevant information."""
         pdb_file_name = pdb_id + '.pdb'
         download_pdb_file(pdb_id, pdb_file_name)
         pair_dist_lists, sifts_mapping_used = make_contact_map(pdb_id, list(chains),
