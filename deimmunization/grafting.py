@@ -11,6 +11,7 @@ from collections import defaultdict
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.SeqFeature import SeqFeature, FeatureLocation
 from Bio.Alphabet import SingleLetterAlphabet
 from Bio import pairwise2
 from Bio.SubsMat import MatrixInfo as matlist
@@ -162,23 +163,49 @@ class SDRGrafting(Grafting):
 
     def __init__(self, sequence, template, pdb_id, chains, contact_threshold=6):
         super(SDRGrafting, self).__init__(sequence, template)
-        self.pair_dist_list = SDRGrafting.make_contact_map_wrapper(pdb_id, chains)
+        self.set_seq_location()
+        self.pair_dist_list = self.make_contact_map_wrapper(pdb_id, chains)
         self.find_residues_to_graft(contact_threshold)
-        # self.graft()
+        self.graft()
 
-    @staticmethod
-    def make_contact_map_wrapper(pdb_id, chains):
+    def set_seq_location(self):
+        try:
+            bound = self.sequence.id.split('/')[-1]
+            loc_feature = SeqFeature(FeatureLocation(int(bound.split('-')[0]),
+                                                     int(bound.split('-')[1])),
+                                     type='domain')
+            self.sequence.features.append(loc_feature)
+        except Exception:
+            print >> stderr, 'Please provide the location of the domain on the sequence.'
+            exit(1)
+
+    def make_contact_map_wrapper(self, pdb_id, chains):
         pdb_file_name = pdb_id + '.pdb'
         download_pdb_file(pdb_id, pdb_file_name)
-        pair_dist_lists = make_contact_map(pdb_id, list(chains),
-                                           pdb_file_name=pdb_file_name,
-                                           use_sifts_mapping=True)
+        pair_dist_lists, sifts_mapping_used = make_contact_map(pdb_id, list(chains),
+                                                               pdb_file_name=pdb_file_name,
+                                                               use_sifts_mapping=True)
         system('rm ' + pdb_file_name)
-        return pair_dist_lists[tuple(chains)]
+        pair_dist_list = [(up_r1, up_r2, dist)
+                          for up_r1, _, _, up_r2, _, _, dist in pair_dist_lists[tuple(chains)]
+                          if up_r1 >= int(self.sequence.features[0].location.start) and
+                          up_r1 <= int(self.sequence.features[0].location.end)]
+        if not sifts_mapping_used:
+            if not SDRGrafting.numbering_is_equal(self.sequence.features[0].location,
+                                                  [r for r, _, _ in pair_dist_list]):
+                print >> stderr, 'Sifts Mapping not available.'
+                print >> stderr, 'SDR Grafting can\'t be applied. Try another approach.'
+                exit(1)
+        return pair_dist_list
 
-    # TODO implement
+    @staticmethod
+    def numbering_is_equal(location, res_list):
+        return range(location.start, location.end+1) == sorted(list(set(res_list)))
+
     def find_residues_to_graft(self, contact_threshold):
-        pass
+        res_list = [r1 for r1, _, dist in self.pair_dist_list
+                    if dist <= contact_threshold]
+        self.residues_to_graft = sorted(list(set(res_list)))
 
 
 class ManualGrafting(Grafting):
@@ -192,17 +219,11 @@ class ManualGrafting(Grafting):
         self.graft()
 
     def find_residues_to_graft(self, given_residues):
-        self.residues_to_graft = [int(res_num) for res_num in given_residues.split(',')]
+        self.residues_to_graft = [int(res) for res in given_residues.split(',')]
 
 
 def command_line():
     parser = argparse.ArgumentParser(description='Initial humanization of an antibody by CDR or SDR Grafting')
-    parser.add_argument('--sequence', '-s',
-                        required=True,
-                        help='The sequence to be humanized (in fasta format)')
-    parser.add_argument('--template', '-t',
-                        required=True,
-                        help='The human sequence to be used as a template (in fasta format)')
     parser.add_argument('--pdb_id', '-p',
                         required=False,
                         help='PDB ID for using structure to determine antigen contacts of the murine antibody domain '
@@ -211,11 +232,24 @@ def command_line():
                         required=False,
                         help='Chains of antiboy domain to be humanized (first) and of its cognate antigen (second), '
                             +'e.g. DB (D: antibody chain, B: antigen chain)')
+    parser.add_argument('--contact_threshold', '-x',
+                        required=False,
+                        help='Distance threshold used to define protein contacts '
+                            +'(default: 6)')
     parser.add_argument('--manual', '-m',
                         required=False,
                         help='The non-human residues to be grafted onto the human template sequence, '
                             +'specified by a comma-separated list of residue numbers, e.g. 14,15,16,79,80 '
                             +'(residue numbers starting from 1)')
+    parser.add_argument('--sequence', '-s',
+                        required=True,
+                        help='The sequence to be humanized (in fasta format). '
+                            +'If you intend to apply SDR Grafting, please provide the location of the domain '
+                            +'on the sequence in the header of the fasta entry, separated from the id '
+                            +'by a forward slash (e.g. >some_id/20-140)')
+    parser.add_argument('--template', '-t',
+                        required=True,
+                        help='The human sequence to be used as a template (in fasta format)')
     parser.add_argument('--output', '-o',
                         required=True,
                         help='Output File')
@@ -232,9 +266,10 @@ def command_line():
 
     if args.manual is not None:
         grafting = ManualGrafting(seq_record, tem_record, args.manual)
-    elif args.pdb_id is not None:
+    elif args.pdb_id is not None and args.contact_threshold is not None:
+        grafting = SDRGrafting(seq_record, tem_record, args.pdb_id, args.chains, contact_threshold)
+    elif args.pdb_id is not None and args.contact_threshold is None:
         grafting = SDRGrafting(seq_record, tem_record, args.pdb_id, args.chains)
-        sys.exit(0)
     else:
         grafting = CDRGrafting(seq_record, tem_record)
 

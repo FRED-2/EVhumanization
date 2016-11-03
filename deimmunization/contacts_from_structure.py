@@ -101,13 +101,12 @@ def calculate_distance_list(pdb_file, chains, sifts_file, model_number=0):
                     if chain1 != chain2 or r1 < r2:
                         dist = numpy.min(cdist(atom_coordinates_chains[chain1][r1], atom_coordinates_chains[chain2][r2], 'euclidean'))
                         # print r1, r1, "-", r2, r2, "-", round(dist, _NUM_DIGITS)
-                        if sifts_file is not None:
-                            if r1 in pdb_to_up[chain1] and r2 in pdb_to_up[chain2]:
-                                pair_dist_list.append(
-                                    (pdb_to_up[chain1][r1], r1, index_to_res_name[chain1][r1],
-                                     pdb_to_up[chain2][r2], r2, index_to_res_name[chain2][r2],
-                                     round(dist, _NUM_DIGITS))
-                                    )
+                        if sifts_file is not None and r1 in pdb_to_up[chain1] and r2 in pdb_to_up[chain2]:
+                            pair_dist_list.append(
+                                (pdb_to_up[chain1][r1], r1, index_to_res_name[chain1][r1],
+                                 pdb_to_up[chain2][r2], r2, index_to_res_name[chain2][r2],
+                                 round(dist, _NUM_DIGITS))
+                                )
                         else:
                             pair_dist_list.append(
                                     (r1, r1, index_to_res_name[chain1][r1],
@@ -116,7 +115,14 @@ def calculate_distance_list(pdb_file, chains, sifts_file, model_number=0):
                                     )
             pair_dist_lists[(chain1, chain2)] = pair_dist_list
 
-    return pair_dist_lists
+    # sifts_mapping_used is true if sifts mapping exists for every chain
+    sifts_mapping_used = True
+    for chain in chains:
+        r = residue_lists[chain][0]
+        if sifts_file is None or r1 not in pdb_to_up[chain]:
+            sifts_mapping_used = False
+
+    return pair_dist_lists, sifts_mapping_used
 
 
 def read_contact_map(cm_file_name):
@@ -171,7 +177,7 @@ def make_contact_map(pdb_id, chains, pdb_file_name=None, sifts_file_name=None,
         if verbose:
             print >> sys.stderr, "SIFTS file:", sifts_file_name
 
-    pair_dist_list = calculate_distance_list(pdb_file_name, chains, sifts_file_name, model_number)
+    pair_dist_list, sifts_mapping_used = calculate_distance_list(pdb_file_name, chains, sifts_file_name, model_number)
     # write distances to textfile
     if out_file is not None:
         with open(out_file, 'w') as of:
@@ -180,7 +186,7 @@ def make_contact_map(pdb_id, chains, pdb_file_name=None, sifts_file_name=None,
                     # print " ".join(chain_pair) + " " + " ".join(map(str, dist))
                     of.write(" ".join(chain_pair) + " " + " ".join(map(str, dist)) + "\n")
         print "Distances written to", out_file
-    return pair_dist_list
+    return pair_dist_list, sifts_mapping_used
 
 
 def usage():
@@ -190,7 +196,7 @@ def usage():
 def download_pdb_file(pdb_id, pdb_file_name):
     if not os.path.exists(pdb_file_name) or\
             os.path.getsize(pdb_file_name) == 0:
-        print >> sys.stderr, "Downloading", pdb_file_name
+        # print >> sys.stderr, "Downloading", pdb_file_name
         system("curl -sL http://www.rcsb.org/pdb/files/" + pdb_id +
                ".pdb > " + pdb_file_name)
 
