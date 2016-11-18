@@ -19,6 +19,8 @@ class SequenceProfile(object):
     Attributes:
         seq_id -- id of the sequence
         seq -- sequence of length N
+        mapped_seq -- seq mapped to target seq of the ev model
+        seq_eij -- NxN matrix of eij values specific to the sequence
         profile -- coevolution-based profile of length N
     """
 
@@ -111,6 +113,10 @@ class EVprofiles(object):
         self.dists_to_query = sorted(self.dists_to_query, key=lambda x: x[1])
 
     def to_file(self, out, num=1, human_seqs=None):
+        """
+            Write first num sequences with minimum distances from the query
+            to file in fasta format.
+        """
         top_dists_to_query = self.dists_to_query[:num]
         with open(out, 'w') as f:
             for profile, dist in top_dists_to_query:
