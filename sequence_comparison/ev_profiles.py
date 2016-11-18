@@ -1,0 +1,191 @@
+import sys
+import argparse
+import numpy as np
+from Bio import SeqIO
+from Bio import AlignIO
+from Bio import pairwise2
+from Bio.SubsMat.MatrixInfo import blosum62
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
+from scipy.spatial import distance
+
+sys.path.append('utilities')
+from ev_couplings_v4 import EVcouplings
+
+
+class SequenceProfile(object):
+    """Representation of a coevolution-based profile of a specific sequence.
+
+    Attributes:
+        seq_id -- id of the sequence
+        seq -- sequence of length N
+        profile -- coevolution-based profile of length N
+    """
+
+    def __init__(self, seq_id, seq, profile):
+        self.seq_id = seq_id
+        self.seq = seq
+        self.profile = profile
+
+    def __repr__(self):
+        return 'SequenceProfile(seq_id=%r, seq=%r, profile=%r)'\
+            % (self.seq_id, self.seq, self.profile)
+
+    @classmethod
+    def from_repr(cls, obj_repr):
+        """Construct SequenceProfile object from string representation."""
+        return eval(obj_repr)
+
+    @classmethod
+    def create(cls, seq_record, ev_couplings, normed_eij=None):
+        """Calculate profile of a given sequence."""
+        seq = cls.map_to_model(seq_record.seq, ev_couplings)
+        seq_eij = cls.extract_seq_specific_eijs(seq, ev_couplings, normed_eij)
+        profile = cls.calc_profile(seq_eij)
+        return cls(seq_record.id, str(seq_record.seq), profile)
+
+    @staticmethod
+    def map_to_model(initial_seq, ev_couplings):
+        """Map sequence of interest to target sequence of the ev model."""
+        aln_target_seq, aln_seq, _, _, _ = pairwise2.align.globalds(
+            ev_couplings.target_seq.tostring().upper(), initial_seq.upper(),
+            blosum62, -11, -1
+        )[0]
+        seq = ''.join([res for i, res in enumerate(aln_seq)
+                       if not aln_target_seq[i] == '-'])
+        return seq
+
+    @staticmethod
+    def extract_seq_specific_eijs(seq, ev_couplings, normed_eij=None):
+        """Create matrix of eij values regarding a specific sequence."""
+        aa_map = ev_couplings.alphabet_map
+        eijs = normed_eij if normed_eij is not None else ev_couplings.e_ij
+        seq_eij = np.zeros((len(seq), len(seq)))
+        for i in xrange(len(seq)):
+            for j in xrange(i+1, len(seq)):
+                seq_eij[i, j] = seq_eij[j, i]\
+                    = eijs[i, j, aa_map[seq[i]], aa_map[seq[j]]]
+        return seq_eij
+
+    @staticmethod
+    def calc_profile(seq_eij):
+        """Calculate profile."""
+        return list(np.sum(seq_eij, axis=1))
+
+    def dist(self, other):
+        """Returns euclidean distance to another profile."""
+        return distance.euclidean(self.profile, other.profile)
+
+
+class EVprofiles(object):
+    """Pairwise comparison of a query sequence to a set of other sequences
+    by coevolution-based profiles.
+
+    Attributes:
+        query -- SeqRecord of the query sequence
+        query_profile -- profile of the query sequence
+        human_profiles -- other profiles the query gets compared to
+                          (not necessarily human of course)
+        dists_to_query -- distances of the human_profiles to query_profile
+                          as list of tuples (human profile, distance to query)
+    """
+
+    # path to precalculated profiles
+    HUMAN_PROFILES_FN = 'data/human_domains_from_scop.profiles'
+
+    def __init__(self, query, ev_couplings, human_seqs=None, normalize=True):
+        self.query = query
+        self.query_profile = SequenceProfile.create(self.query, ev_couplings)
+        if human_seqs is None:
+            self.human_profiles = EVprofiles.load_profiles_from_file()
+        else:
+            normed_eij = EVprofiles.normalize_eijs(ev_couplings.e_ij)\
+                if normalize else None
+            self.human_profiles = [
+                SequenceProfile.create(seq_record, ev_couplings, normed_eij)
+                for seq_record in human_seqs
+            ]
+        self.dists_to_query = [
+            (human_profile, self.query_profile.dist(human_profile))
+            for human_profile in self.human_profiles
+        ]
+        self.dists_to_query = sorted(self.dists_to_query, key=lambda x: x[1])
+
+    def to_file(self, out, num=1, human_seqs=None):
+        top_dists_to_query = self.dists_to_query[:num]
+        with open(out, 'w') as f:
+            for profile, dist in top_dists_to_query:
+                f.write('>%s distance_from_%s=%f\n' % (profile.seq_id, self.query.id, dist))
+                f.write(profile.seq + '\n')
+        print('resulting sequences written to %s' % out)
+
+    @staticmethod
+    def load_profiles_from_file():
+        """Load precalculated profiles of a set of sequences from file."""
+        with open(EVprofiles.HUMAN_PROFILES_FN, 'rU') as in_file:
+            human_profiles = [
+                SequenceProfile.from_repr(seq_profile_repr)
+                for seq_profile_repr in in_file.readlines()
+            ]
+        return human_profiles
+
+    @staticmethod
+    def normalize_eijs(eijs):
+        """Normalize each eij matrix."""
+        normed_eij = np.zeros(eijs.shape)
+        for i in xrange(eijs.shape[0]):
+            for j in xrange(eijs.shape[1]):
+                normed_eij[i, j] = EVprofiles.normalize_eij(eijs[i, j])
+        return normed_eij
+
+    @staticmethod
+    def normalize_eij(eij):
+        """
+            Take the absolute value of each eij entry and
+            normalize the eij matrix by its absolute maximum value.
+        """
+        abs_eij = abs(eij)
+        norm = np.vectorize(lambda x: x / np.amax(abs_eij))
+        return norm(abs_eij)
+
+
+def init_parameters(args):
+    """Read in and process parameters obtained from the command line."""
+    with open(args.query) as query_file:
+        query = SeqIO.read(query_file, 'fasta')
+    try:
+        with open(args.human_sequences, 'rU') as seq_file:
+            human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
+    except TypeError:
+        human_seqs = None
+    return query, EVcouplings(args.eij_file), human_seqs
+
+
+def command_line():
+    parser = argparse.ArgumentParser(
+        description='Compare query sequence to a set of human sequences ' +
+                    'by coevolution-based profiles'
+    )
+    parser.add_argument('--query', '-q', required=True,
+                        help='Query sequence (in fasta format)')
+    parser.add_argument('--eij_file', '-e', required=True,
+                        help='eij file')
+    parser.add_argument('--out', '-o', required=True,
+                        help='Output file')
+    parser.add_argument('--human_sequences', '-s', required=False,
+                        help='Human sequences in fasta format ' +
+                             '(default: precalculated profiles of human sequences are used)')
+    parser.add_argument('--num_of_resulting_sequences', '-n', required=False,
+                        help='The given number of sequences with minimal distance ' +
+                             'to query will be printed to fasta file (default: 1)')
+    args = parser.parse_args()
+
+    ev_profiles = EVprofiles(*init_parameters(args))
+
+    if args.num_of_resulting_sequences is not None:
+        ev_profiles.to_file(args.out, int(args.num_of_resulting_sequences))
+    else:
+        ev_profiles.to_file(args.out)
+
+if __name__ == '__main__':
+    command_line()
