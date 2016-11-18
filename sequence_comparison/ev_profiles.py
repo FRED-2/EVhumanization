@@ -22,9 +22,11 @@ class SequenceProfile(object):
         profile -- coevolution-based profile of length N
     """
 
-    def __init__(self, seq_id, seq, profile):
+    def __init__(self, seq_id, seq, mapped_seq=None, seq_eij=None, profile=None):
         self.seq_id = seq_id
         self.seq = seq
+        self.mapped_seq = mapped_seq
+        self.seq_eij = seq_eij
         self.profile = profile
 
     def __repr__(self):
@@ -39,38 +41,35 @@ class SequenceProfile(object):
     @classmethod
     def create(cls, seq_record, ev_couplings, normed_eij=None):
         """Calculate profile of a given sequence."""
-        seq = cls.map_to_model(seq_record.seq, ev_couplings)
-        seq_eij = cls.extract_seq_specific_eijs(seq, ev_couplings, normed_eij)
-        profile = cls.calc_profile(seq_eij)
-        return cls(seq_record.id, str(seq_record.seq), profile)
+        seq_profile = cls(seq_record.id, str(seq_record.seq))
+        seq_profile.map_to_model(ev_couplings)
+        seq_profile.extract_seq_specific_eijs(ev_couplings, normed_eij)
+        seq_profile.calc_profile()
+        return seq_profile
 
-    @staticmethod
-    def map_to_model(initial_seq, ev_couplings):
+    def map_to_model(self, ev_couplings):
         """Map sequence of interest to target sequence of the ev model."""
         aln_target_seq, aln_seq, _, _, _ = pairwise2.align.globalds(
-            ev_couplings.target_seq.tostring().upper(), initial_seq.upper(),
+            ev_couplings.target_seq.tostring().upper(), self.seq.upper(),
             blosum62, -11, -1
         )[0]
-        seq = ''.join([res for i, res in enumerate(aln_seq)
-                       if not aln_target_seq[i] == '-'])
-        return seq
+        self.mapped_seq = ''.join([res for i, res in enumerate(aln_seq)
+                                   if not aln_target_seq[i] == '-'])
 
-    @staticmethod
-    def extract_seq_specific_eijs(seq, ev_couplings, normed_eij=None):
+    def extract_seq_specific_eijs(self, ev_couplings, normed_eij=None):
         """Create matrix of eij values regarding a specific sequence."""
         aa_map = ev_couplings.alphabet_map
         eijs = normed_eij if normed_eij is not None else ev_couplings.e_ij
-        seq_eij = np.zeros((len(seq), len(seq)))
-        for i in xrange(len(seq)):
-            for j in xrange(i+1, len(seq)):
-                seq_eij[i, j] = seq_eij[j, i]\
-                    = eijs[i, j, aa_map[seq[i]], aa_map[seq[j]]]
-        return seq_eij
+        self.seq_eij = np.zeros((len(self.mapped_seq), len(self.mapped_seq)))
+        for i in xrange(len(self.mapped_seq)):
+            for j in xrange(i+1, len(self.mapped_seq)):
+                res_i, res_j = self.mapped_seq[i], self.mapped_seq[j]
+                self.seq_eij[i, j] = self.seq_eij[j, i]\
+                    = eijs[i, j, aa_map[res_i], aa_map[res_j]]
 
-    @staticmethod
-    def calc_profile(seq_eij):
+    def calc_profile(self):
         """Calculate profile."""
-        return list(np.sum(seq_eij, axis=1))
+        self.profile = list(np.sum(self.seq_eij, axis=1))
 
     def dist(self, other):
         """Returns euclidean distance to another profile."""
