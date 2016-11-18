@@ -18,8 +18,8 @@ class SequenceProfile(object):
 
     Attributes:
         seq_id -- id of the sequence
-        seq -- sequence of length N
-        mapped_seq -- seq mapped to target seq of the ev model
+        seq -- sequence
+        mapped_seq -- of length N, seq mapped to target seq of the ev model
         seq_eij -- NxN matrix of eij values specific to the sequence
         profile -- coevolution-based profile of length N
     """
