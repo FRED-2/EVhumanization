@@ -7,19 +7,14 @@ from ev_profiles import EVprofiles
 
 sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
+from ev_couplings_normalized import NormalizedEVcouplings
 
 
-def init_parameters(args):
-    """Read in parameters."""
-    with open(args.sequences, 'rU') as seq_file:
-        human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
-    return human_seqs, EVcouplings(args.eij_file)
-
-
-def precalculate_profiles(human_seqs, ev_couplings):
+def precalculate_profiles(human_seqs, eij_file, mode=NormalizedEVcouplings.ABS_MAX):
     """Calculate profiles based on normalized eijs."""
-    normed_eij = EVprofiles.normalize_eijs(ev_couplings.e_ij)
-    return [SequenceProfile.create(seq_record, ev_couplings, normed_eij)
+    ev_couplings = EVcouplings(eij_file) if mode == 'no'\
+        else NormalizedEVcouplings(eij_file, mode)
+    return [SequenceProfile.create(seq_record, ev_couplings)
             for seq_record in human_seqs]
 
 
@@ -40,9 +35,20 @@ def command_line():
                              '(in fasta format)')
     parser.add_argument('--eij_file', '-e', required=True, help='eij file')
     parser.add_argument('--out', '-o', required=True, help='Output file')
+    parser.add_argument('--normalization', '-n', required=False,
+                        help="Normalization mode (one of: 'max', 'abs max', 'no'); " +
+                             'no: no normalization, ' +
+                             'max: normalize each eij matrix by its maximum value, ' +
+                             'abs max: normalize each absolute eij matrix by its maximum value (default)')
     args = parser.parse_args()
 
-    profiles = precalculate_profiles(*init_parameters(args))
+    with open(args.sequences, 'rU') as seq_file:
+        human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
+
+    profiles = precalculate_profiles(human_seqs, args.eij_file)\
+        if args.normalization is None\
+        else precalculate_profiles(human_seqs, args.eij_file, args.normalization)
+
     write_to_file(profiles, args.out)
 
 if __name__ == '__main__':

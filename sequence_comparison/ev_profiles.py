@@ -11,6 +11,7 @@ from scipy.spatial import distance
 
 sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
+from ev_couplings_normalized import NormalizedEVcouplings
 
 
 class SequenceProfile(object):
@@ -41,11 +42,11 @@ class SequenceProfile(object):
         return eval(obj_repr)
 
     @classmethod
-    def create(cls, seq_record, ev_couplings, normed_eij=None):
+    def create(cls, seq_record, ev_couplings):
         """Calculate profile of a given sequence."""
         seq_profile = cls(seq_record.id, str(seq_record.seq))
         seq_profile.map_to_model(ev_couplings)
-        seq_profile.extract_seq_specific_eijs(ev_couplings, normed_eij)
+        seq_profile.extract_seq_specific_eijs(ev_couplings)
         seq_profile.calc_profile()
         return seq_profile
 
@@ -58,10 +59,12 @@ class SequenceProfile(object):
         self.mapped_seq = ''.join([res for i, res in enumerate(aln_seq)
                                    if not aln_target_seq[i] == '-'])
 
-    def extract_seq_specific_eijs(self, ev_couplings, normed_eij=None):
+    def extract_seq_specific_eijs(self, ev_couplings):
         """Create matrix of eij values regarding a specific sequence."""
         aa_map = ev_couplings.alphabet_map
-        eijs = normed_eij if normed_eij is not None else ev_couplings.e_ij
+        eijs = ev_couplings.normalized_e_ij\
+            if isinstance(ev_couplings, NormalizedEVcouplings)\
+            else ev_couplings.e_ij
         self.seq_eij = np.zeros((len(self.mapped_seq), len(self.mapped_seq)))
         for i in xrange(len(self.mapped_seq)):
             for j in xrange(i+1, len(self.mapped_seq)):
@@ -94,16 +97,17 @@ class EVprofiles(object):
     # path to precalculated profiles
     HUMAN_PROFILES_FN = 'data/human_domains_from_scop.profiles'
 
-    def __init__(self, query, ev_couplings, human_seqs=None, normalize=True):
+    def __init__(self, query, eij_filename, human_seqs=None,
+                 normalization_mode=NormalizedEVcouplings.ABS_MAX):
+        ev_couplings = NormalizedEVcouplings(eij_filename, mode=normalization_mode)\
+            if normalization_mode else EVcouplings(eij_filename)
         self.query = query
         self.query_profile = SequenceProfile.create(self.query, ev_couplings)
         if human_seqs is None:
             self.human_profiles = EVprofiles.load_profiles_from_file()
         else:
-            normed_eij = EVprofiles.normalize_eijs(ev_couplings.e_ij)\
-                if normalize else None
             self.human_profiles = [
-                SequenceProfile.create(seq_record, ev_couplings, normed_eij)
+                SequenceProfile.create(seq_record, ev_couplings)
                 for seq_record in human_seqs
             ]
         self.dists_to_query = [
@@ -134,25 +138,6 @@ class EVprofiles(object):
             ]
         return human_profiles
 
-    @staticmethod
-    def normalize_eijs(eijs):
-        """Normalize each eij matrix."""
-        normed_eij = np.zeros(eijs.shape)
-        for i in xrange(eijs.shape[0]):
-            for j in xrange(eijs.shape[1]):
-                normed_eij[i, j] = EVprofiles.normalize_eij(eijs[i, j])
-        return normed_eij
-
-    @staticmethod
-    def normalize_eij(eij):
-        """
-            Take the absolute value of each eij entry and
-            normalize the eij matrix by its absolute maximum value.
-        """
-        abs_eij = abs(eij)
-        norm = np.vectorize(lambda x: x / np.amax(abs_eij))
-        return norm(abs_eij)
-
 
 def init_parameters(args):
     """Read in and process parameters obtained from the command line."""
@@ -163,7 +148,7 @@ def init_parameters(args):
             human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
     except TypeError:
         human_seqs = None
-    return query, EVcouplings(args.eij_file), human_seqs
+    return query, args.eij_file, human_seqs
 
 
 def command_line():
