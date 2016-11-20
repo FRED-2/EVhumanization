@@ -116,7 +116,7 @@ class EVprofiles(object):
         ]
         self.dists_to_query = sorted(self.dists_to_query, key=lambda x: x[1])
 
-    def to_file(self, out, num=1, human_seqs=None):
+    def to_file(self, out, num=1):
         """
             Write first num sequences with minimum distances from the query
             to file in fasta format.
