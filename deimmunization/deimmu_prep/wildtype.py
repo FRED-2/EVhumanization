@@ -1,5 +1,7 @@
 from multiprocessing import Pool, cpu_count
 from collections import defaultdict
+from Bio import pairwise2
+from Bio.SubsMat.MatrixInfo import blosum62
 
 
 def predictstart(x):
@@ -131,3 +133,21 @@ class Wildtype(object):
 
     def map_to_uniprot(self, pos):
         return self.uniprot_offset + (pos - self.internal_offset)
+
+    def map_to_seq(self, seq):
+        """Map wildtype sequence to any other sequence."""
+        aln_wt, aln_seq, _, _, _ = pairwise2.align.globalds(
+            self.sequence, seq.upper(), blosum62, -11, -1
+        )[0]
+        mapping = defaultdict(lambda: -1)
+        wt_res_num, seq_res_num = 0, 0
+        for wt_res, seq_res in zip(aln_wt, aln_seq):
+            if wt_res != '-' and seq_res != '-':
+                mapping[wt_res_num] = seq_res_num
+                wt_res_num += 1
+                seq_res_num += 1
+            elif wt_res == '-':
+                seq_res_num += 1
+            elif seq_res == '-':
+                wt_res_num += 1
+        return mapping
