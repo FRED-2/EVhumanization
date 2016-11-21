@@ -3,7 +3,6 @@ import numpy as np
 from collections import defaultdict
 from copy import deepcopy
 
-sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
 
 class NormalizedEVcouplings(EVcouplings):

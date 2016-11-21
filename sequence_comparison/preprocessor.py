@@ -5,7 +5,6 @@ from Bio import SeqIO
 from ev_profiles import SequenceProfile
 from ev_profiles import EVprofiles
 
-sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
 from utilities.ev_couplings_normalized import NormalizedEVcouplings
 

@@ -7,10 +7,8 @@ import ConfigParser
 from Bio import AlignIO
 from Bio.Align.AlignInfo import SummaryInfo
 
-from utilities.abstract_deimmu_prep import AbstractDeimmuPreparation
-
-sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
+from utilities.abstract_deimmu_prep import AbstractDeimmuPreparation
 
 class DeimmuPreparation(AbstractDeimmuPreparation):
     """Preparation and generation of input files used to de-immunize an amino acid sequence.
