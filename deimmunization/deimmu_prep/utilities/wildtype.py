@@ -43,6 +43,7 @@ class Wildtype(object):
 
     @classmethod
     def create(cls, alignment, ev_couplings):
+        """Construct wildtype from the first sequence in the alignment."""
         wildtype = cls(alignment[0].id, str(alignment[0].seq))
         wildtype.calc_offsets(ev_couplings)
         print '%s\n' % wildtype

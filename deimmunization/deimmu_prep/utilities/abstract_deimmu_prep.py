@@ -10,13 +10,14 @@ from ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
 
 
 class AbstractDeimmuPreparation(object):
-    """Preparation and generation of input files for the de-immunization of an amino acid sequence.
+    """Abstract class for the preparation and generation of input files
+    used to de-immunize an amino acid sequence.
 
-    attributes:
+    Attributes:
         wildtype -- wildtype to be deimmunized
         num_mutations -- number of allowed mutations
         epitope_length -- length of an epitope
-        alleles -- list of alleles
+        allele_coll -- collection of alleles
         excluded_pos -- list of positions not allowed to be mutated
         ignored_pos -- list of positions ignored in calculation
         possible_mutations -- list of possible amino acid substitutions for each position
@@ -38,9 +39,14 @@ class AbstractDeimmuPreparation(object):
 
     @abstractmethod
     def set_possible_mutations(self):
+        """
+            For each wildtype residue generate a set of possible
+            amino acid substitutions.
+        """
         raise NotImplementedError
 
     def read_in_config_paras(self, config):
+        """Read in simple parameters from the config file."""
         self.num_mutations = int(config.get('parameters', 'k'))
         self.epitope_length = int(config.get('parameters', 'epi_len'))
         ex_pos = config.get('sets','exclude_pos').split(',')
@@ -54,6 +60,7 @@ class AbstractDeimmuPreparation(object):
         print 'Ignored positions: %s\n' % self.ignored_pos
 
     def extract_ev_paras(self, ev_couplings):
+        """Extract relevant fields and pair coupling parameters."""
         self.hi = {}
         for i in self.wildtype.epitope_pos:
             for ai in filter(lambda x: x != '-', ev_couplings.alphabet_map.keys()):
@@ -80,7 +87,7 @@ class AbstractDeimmuPreparation(object):
                     ]
 
     def to_data_file(self, out):
-        """Generates data file and input files for the solver."""
+        """Generate data file."""
         with open(out, 'w') as f:
             f.write('##################################\n#\n# Sets I\n#\n##################################\n\n')
             f.write('set SIGMA := ' + ' '.join(list(ALPHABET_PROTEIN_NOGAP)) + ';\n')
@@ -119,7 +126,7 @@ class AbstractDeimmuPreparation(object):
             f.write('end;\n\n')
 
     def generate_lp_files(self, out, model):
-        # generate input files for the solver
+        """Generate input files for the solver."""
         lp_model = ''.join(out.split('.')[:-1])
         print 'glpsol -m %s -d %s --check --wlp %s'%(model,'.'.join(out.split('.')[:-1])+'_imm.data',lp_model)
         subprocess.call('glpsol -m %s -d %s --check --wcpxlp %s'%(model[0],out,lp_model+'_imm.lp'), shell=True) # Benni: wlp

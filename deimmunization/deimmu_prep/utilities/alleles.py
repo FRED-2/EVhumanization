@@ -4,6 +4,11 @@ from abc import ABCMeta, abstractmethod
 
 
 class AlleleCollection(object):
+    """Representation of a set of alleles.
+
+    Attributes:
+        alleles -- list of alleles
+    """
 
     def __init__(self, config):
         self.read_in_alleles(config.get('sets', 'allele_file'))
@@ -16,7 +21,13 @@ class AlleleCollection(object):
                 allele.normalize_pssm(pssm_pos_const, epitope_length)
             else:
                 self.alleles.remove(allele)
-        self.print_info()
+        print self
+
+    def __str__(self):
+        s = '# Allele name\t probability\t pssm_thresh\n'
+        for allele in self.alleles:
+            s += str(allele) + '\n'
+        return s
 
     def read_in_alleles(self, filename):
         """Reads allele information from file."""
@@ -25,12 +36,6 @@ class AlleleCollection(object):
             for line in allele_file:
                 name, pssm_thresh, probability = line.split(',')
                 self.alleles.append(Allele(name, float(probability), float(pssm_thresh)))
-
-    def print_info(self):
-        print '# Allele name\t probability\t pssm_thresh'
-        for allele in self.alleles:
-            print allele
-        print
 
 
 class Allele(object):
