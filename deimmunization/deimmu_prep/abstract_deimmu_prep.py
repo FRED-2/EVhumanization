@@ -4,8 +4,6 @@ from abc import ABCMeta, abstractmethod
 
 from alleles import AlleleCollection
 from wildtype import Wildtype
-
-sys.path.append('utilities')
 from ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
 
 

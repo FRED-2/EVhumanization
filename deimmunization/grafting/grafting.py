@@ -16,8 +16,8 @@ from Bio.Alphabet import SingleLetterAlphabet
 from Bio import pairwise2
 from Bio.SubsMat import MatrixInfo as matlist
 
-from utilities.kabat_numbering import KabatNumbering
-from utilities.contacts_from_structure import download_pdb_file, make_contact_map
+from kabat_numbering import KabatNumbering
+from contacts_from_structure import download_pdb_file, make_contact_map
 
 
 class Grafting(object):

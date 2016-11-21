@@ -10,7 +10,7 @@ from Bio.Seq import Seq
 from scipy.spatial import distance
 
 from ev_couplings_v4 import EVcouplings
-from utilities.ev_couplings_normalized import NormalizedEVcouplings
+from ev_couplings_normalized import NormalizedEVcouplings
 
 
 class SequenceProfile(object):
