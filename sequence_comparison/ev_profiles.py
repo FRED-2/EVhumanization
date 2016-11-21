@@ -11,7 +11,7 @@ from scipy.spatial import distance
 
 sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
-from ev_couplings_normalized import NormalizedEVcouplings
+from utilities.ev_couplings_normalized import NormalizedEVcouplings
 
 
 class SequenceProfile(object):

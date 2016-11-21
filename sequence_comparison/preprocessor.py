@@ -7,7 +7,7 @@ from ev_profiles import EVprofiles
 
 sys.path.append('utilities')
 from ev_couplings_v4 import EVcouplings
-from ev_couplings_normalized import NormalizedEVcouplings
+from utilities.ev_couplings_normalized import NormalizedEVcouplings
 
 
 def precalculate_profiles(human_seqs, eij_file, mode=NormalizedEVcouplings.ABS_MAX):
