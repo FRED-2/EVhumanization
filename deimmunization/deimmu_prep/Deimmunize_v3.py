@@ -10,6 +10,7 @@ from Bio.Align.AlignInfo import SummaryInfo
 from ev_couplings_v4 import EVcouplings
 from abstract_deimmu_prep import AbstractDeimmuPreparation
 
+
 class DeimmuPreparation(AbstractDeimmuPreparation):
     """Preparation and generation of input files used to de-immunize an amino acid sequence.
 
@@ -66,6 +67,7 @@ def init_parameters(args):
     ev_couplings = EVcouplings(args.eij)
     return config, alignment, ev_couplings
 
+
 def command_line():
     parser = argparse.ArgumentParser(
         description='Preparation and generation of input files ' +
@@ -86,6 +88,7 @@ def command_line():
     deimmu = DeimmuPreparation(*init_parameters(args))
     deimmu.to_data_file(args.out)
     deimmu.generate_lp_files(args.out, args.model)
+
 
 if __name__ == '__main__':
     command_line()

@@ -151,3 +151,11 @@ class Wildtype(object):
             elif seq_res == '-':
                 wt_res_num += 1
         return mapping
+
+    def to_param_N(self):
+        """Return length of the wildtype sequence as string."""
+        return str(len(self.sequence))
+
+    def to_set_E(self):
+        """Return predicted epitope positions as string."""
+        return ' '.join(str(i+1) for i in self.epitope_pos)

@@ -7,6 +7,13 @@ from wildtype import Wildtype
 from utilities.ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
 
 
+def to_data_format(key_word, identifier, content, end=True, new_line=True):
+    """Generalization of an entry in a data file."""
+    stop = ';' if end else ''
+    new = '\n' if new_line else ''
+    return '%s %s := %s%s%s' % (key_word, identifier, content, stop, new)
+
+
 class AbstractDeimmuPreparation(object):
     """Abstract class for the preparation and generation of input files
     used to de-immunize an amino acid sequence.
@@ -88,40 +95,57 @@ class AbstractDeimmuPreparation(object):
         """Generate data file."""
         with open(out, 'w') as f:
             f.write('##################################\n#\n# Sets I\n#\n##################################\n\n')
-            f.write('set SIGMA := ' + ' '.join(list(ALPHABET_PROTEIN_NOGAP)) + ';\n')
-            f.write('set A := ' + ' '.join([a.name for a in self.allele_coll.alleles]) + ';\n\n')
+            f.write(to_data_format('set', 'SIGMA', ' '.join(list(ALPHABET_PROTEIN_NOGAP))))
+            f.write(to_data_format('set', 'A', self.allele_coll.to_set_A()) + '\n')
 
             f.write('##################################\n#\n# Params I\n#\n##################################\n\n')
-            f.write('param N := ' + str(len(self.wildtype.sequence)) + ';\n')
-            f.write('param eN := ' + str(self.epitope_length) + ';\n')
-            f.write('param k := ' + str(self.num_mutations) + ';\n')
-            f.write('param pssm_thresh :=\n' + '\n'.join('\t'+a.name+'\t'+str(a.pssm_thresh) for a in self.allele_coll.alleles) + ';\n\n')
-            f.write('param p :=\n' + '\n'.join('\t'+a.name+'\t'+str(a.probability) for a in self.allele_coll.alleles) + ';\n\n')
-            f.write('param pssm :=\n')
-            for a in self.allele_coll.alleles:
-                f.write('[' + a.name + ',*,*]: ' + ' '.join(str(i+1) for i in xrange(self.epitope_length))
-                      + ':=\n' + '\n'.join([aa+'\t'+'\t'.join(str(a.pssm[aa,i]) for i in xrange(self.epitope_length)) for aa in list(ALPHABET_PROTEIN_NOGAP)]) + '\n')
-            f.write(';\n\n')
+            f.write(to_data_format('param', 'N', self.wildtype.to_param_N()))
+            f.write(to_data_format('param', 'eN', str(self.epitope_length)))
+            f.write(to_data_format('param', 'k', str(self.num_mutations)))
+            f.write(to_data_format('param', 'pssm_thresh', self.allele_coll.to_param_pssm_thresh()) + '\n')
+            f.write(to_data_format('param', 'p', self.allele_coll.to_param_p()) + '\n')
+            f.write(to_data_format('param', 'pssm', self.allele_coll.to_param_pssm(self.epitope_length)) + '\n')
 
             f.write('##################################\n#\n# Sets II\n#\n##################################\n\n')
-            f.write('set Eij := ' + '\t'.join(str(i+1) + ' ' + str(j+1) for i,j in self.eij_indices) + ';\n')
-            f.write('set E := '   + ' '.join(str(i+1) for i in self.wildtype.epitope_pos) + ';\n\n')
+            f.write(to_data_format('set', 'Eij', self.format_eij_indices()))
+            f.write(to_data_format('set', 'E', self.wildtype.to_set_E()) + '\n')
             for i in xrange(len(self.wildtype.sequence)):
-                f.write('set WT[' + str(i+1) + '] := ' + self.wildtype.sequence[i] + ';\n')
-            f.write('\n'.join('set M[' + str(i+1) + '] := ' + ' '.join(a for a in self.possible_mutations[i]) + ';'\
-                for i in xrange(len(self.wildtype.sequence))) + '\n\n')
+                f.write(to_data_format('set', 'WT[%i]' % (i+1), self.wildtype.sequence[i]))
+            for i in xrange(len(self.wildtype.sequence)):
+                f.write(to_data_format('set', 'M[%i]' % (i+1), ' '.join(aa for aa in self.possible_mutations[i])))
+            f.write('\n')
 
             f.write('##################################\n#\n# Params II\n#\n##################################\n\n')
-            f.write('param h: '+' '.join(a for a in list(ALPHABET_PROTEIN_NOGAP))+' := \n')
-            f.write('\n'.join(str(i+1) + ' ' + ' '.join(str(self.hi[i,a])\
-                for a in list(ALPHABET_PROTEIN_NOGAP)) for i in self.wildtype.epitope_pos)+';\n\n')
-            f.write('param eij :=\n')
-            for i,j in self.eij_indices:
-                f.write('[' + str(i+1) + ',' + str(j+1) + ',*,*]: ' + '\t'.join(self.possible_mutations[j]) + ' :=\n')
-                for ai in self.possible_mutations[i]:
-                    f.write(ai + '\t' + '\t'.join(str(self.eij[i,j,ai,aj]) for aj in self.possible_mutations[j]) + '\n')
-            f.write(';\n\n')
-            f.write('end;\n\n')
+            f.write(to_data_format('param', 'h' + ': ' + ' '.join(aa for aa in list(ALPHABET_PROTEIN_NOGAP)), self.format_hi()) + '\n')
+            f.write(to_data_format('param', 'eij', self.format_eij()))
+            f.write('\nend;\n\n')
+
+    def format_eij_indices(self):
+        """Convert eij indices to data format."""
+        return '\t'.join(str(i+1) + ' ' + str(j+1) for i, j in self.eij_indices)
+
+    def format_hi(self):
+        """Convert hi to data format."""
+        return '\n' + '\n'.join(
+            str(i+1) + ' ' + ' '.join(str(self.hi[i, aa])
+            for aa in list(ALPHABET_PROTEIN_NOGAP))
+            for i in self.wildtype.epitope_pos
+        )
+
+    def format_eij(self):
+        """Convert eij to data format."""
+        s = '\n'
+        for i, j in self.eij_indices:
+            keyword = '[%i,%i,*,*]:' % (i+1, j+1)
+            identifier = '\t'.join(self.possible_mutations[j])
+            content = '\n'
+            for ai in self.possible_mutations[i]:
+                content += ai + '\t' + '\t'.join(
+                    str(self.eij[i,j,ai,aj])
+                    for aj in self.possible_mutations[j]
+                ) + '\n'
+            s += to_data_format(keyword, identifier, content, end=False, new_line=False)
+        return s
 
     def generate_lp_files(self, out, model):
         """Generate input files for the solver."""

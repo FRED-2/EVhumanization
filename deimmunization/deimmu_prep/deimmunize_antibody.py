@@ -10,6 +10,7 @@ from Bio import SeqIO
 from utilities.ev_couplings_v4 import EVcouplings
 from abstract_deimmu_prep import AbstractDeimmuPreparation
 
+
 class AntibodyDeimmuPreparation(AbstractDeimmuPreparation):
     """Preparation and generation of input files used to de-immunize
     an antibody sequence, i.e. allowing only backmutations.
@@ -57,6 +58,7 @@ def init_parameters(args):
         source_record = SeqIO.read(source_file, 'fasta')
     return config, alignment, ev_couplings, str(source_record.seq).upper()
 
+
 def command_line():
     parser = argparse.ArgumentParser(
         description='Preparation and generation of input files ' +
@@ -79,6 +81,7 @@ def command_line():
     deimmu = AntibodyDeimmuPreparation(*init_parameters(args))
     deimmu.to_data_file(args.out)
     deimmu.generate_lp_files(args.out, args.model)
+
 
 if __name__ == '__main__':
     command_line()

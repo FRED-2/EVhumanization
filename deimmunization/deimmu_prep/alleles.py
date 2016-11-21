@@ -2,6 +2,9 @@ import os
 import numpy as np
 from abc import ABCMeta, abstractmethod
 
+from utilities.ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
+import abstract_deimmu_prep
+
 
 class AlleleCollection(object):
     """Representation of a set of alleles.
@@ -36,6 +39,31 @@ class AlleleCollection(object):
             for line in allele_file:
                 name, pssm_thresh, probability = line.split(',')
                 self.alleles.append(Allele(name, float(probability), float(pssm_thresh)))
+
+    def to_set_A(self):
+        """Convert allele names to data format."""
+        return ' '.join([allele.name for allele in self.alleles])
+
+    def to_param_pssm_thresh(self):
+        """Convert pssm thresholds of the alleles to data format."""
+        return '\n' + '\n'.join(
+            '\t' + allele.name + '\t' + str(allele.pssm_thresh)
+            for allele in self.alleles
+        )
+
+    def to_param_p(self):
+        """Convert probability of the alleles to data format."""
+        return '\n' + '\n'.join(
+            '\t' + allele.name + '\t' + str(allele.probability)
+            for allele in self.alleles
+        )
+
+    def to_param_pssm(self, epitope_length):
+        """Convert pssms of the alleles to data format."""
+        return '\n' + ''.join(
+            allele.pssm_to_data_format(epitope_length) + '\n'
+            for allele in self.alleles
+        )
 
 
 class Allele(object):
@@ -82,3 +110,17 @@ class Allele(object):
         std = np.std(self.pssm.values())
         self.pssm = {k:(v-mean)/std+pssm_const for k, v in self.pssm.iteritems()}
         self.pssm_thresh = (self.pssm_thresh-epitope_length*mean)/std + epitope_length*pssm_const
+
+    def pssm_to_data_format(self, epitope_length):
+        """Convert pssm of the allele to data format."""
+        keyword = '[%s,*,*]:' % self.name
+        identifier = ' '.join(str(i+1) for i in xrange(epitope_length))
+        content = '\n' + '\n'.join([
+                aa + '\t' + '\t'.join(str(self.pssm[aa, i])
+                for i in xrange(epitope_length))
+                for aa in list(ALPHABET_PROTEIN_NOGAP)
+            ])
+        return abstract_deimmu_prep.to_data_format(
+            keyword, identifier, content,
+            end=False, new_line=False
+        )
