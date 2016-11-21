@@ -5,7 +5,7 @@ from Bio import SeqIO
 from ev_profiles import SequenceProfile
 from ev_profiles import EVprofiles
 
-from ev_couplings_v4 import EVcouplings
+from utilities.ev_couplings_v4 import EVcouplings
 from ev_couplings_normalized import NormalizedEVcouplings
 
 

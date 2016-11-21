@@ -3,7 +3,8 @@ import numpy as np
 from collections import defaultdict
 from copy import deepcopy
 
-from ev_couplings_v4 import EVcouplings
+from utilities.ev_couplings_v4 import EVcouplings
+
 
 class NormalizedEVcouplings(EVcouplings):
     """Extends EVcouplings class by normalized eij matrices

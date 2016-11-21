@@ -9,7 +9,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from scipy.spatial import distance
 
-from ev_couplings_v4 import EVcouplings
+from utilities.ev_couplings_v4 import EVcouplings
 from ev_couplings_normalized import NormalizedEVcouplings
 
 

@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 
 from alleles import AlleleCollection
 from wildtype import Wildtype
-from ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
+from utilities.ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
 
 
 class AbstractDeimmuPreparation(object):
