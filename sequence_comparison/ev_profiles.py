@@ -147,7 +147,13 @@ def init_parameters(args):
             human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
     except TypeError:
         human_seqs = None
-    return query, args.eij_file, human_seqs
+    if args.normalization_mode is None:
+        norm_mode = NormalizedEVcouplings.ABS_MAX
+    elif args.normalization_mode.lower() == 'none':
+        norm_mode = None
+    else:
+        norm_mode = args.normalization_mode.lower()
+    return query, args.eij_file, human_seqs, norm_mode
 
 
 def command_line():
@@ -161,6 +167,11 @@ def command_line():
                         help='eij file')
     parser.add_argument('--out', '-o', required=True,
                         help='Output file')
+    parser.add_argument('--normalization_mode', '-m', required=False,
+                        help="Normalization mode, one of 'max' (normalize each eij matrix " +
+                        "by its maximum value), 'abs max' (normalize each absolute " +
+                        "eij matrix by its maximum value) or 'none' (no normalization). " +
+                        "(default: abs max)")
     parser.add_argument('--human_sequences', '-s', required=False,
                         help='Human sequences in fasta format ' +
                              '(default: precalculated profiles of human sequences are used)')
