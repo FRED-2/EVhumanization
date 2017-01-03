@@ -46,7 +46,7 @@ class SequenceProfile(object):
         seq_profile = cls(seq_record.id, str(seq_record.seq))
         seq_profile.map_to_model(ev_couplings)
         seq_profile.extract_seq_specific_eijs(ev_couplings)
-        seq_profile.calc_profile()
+        seq_profile.calc_profile(ev_couplings)
         return seq_profile
 
     def map_to_model(self, ev_couplings):
@@ -71,9 +71,14 @@ class SequenceProfile(object):
                 self.seq_eij[i, j] = self.seq_eij[j, i]\
                     = eijs[i, j, aa_map[res_i], aa_map[res_j]]
 
-    def calc_profile(self):
+    def calc_profile(self, ev_couplings):
         """Calculate profile."""
-        self.profile = list(np.sum(self.seq_eij, axis=1))
+        # self.profile = list(np.sum(self.seq_eij, axis=1))
+        self.profile = [
+            ev_couplings.h_i[i, ev_couplings.alphabet_map[aa_i]] +
+            0.5 * np.sum(self.seq_eij[i])
+            for i, aa_i in enumerate(self.mapped_seq)
+        ]
 
     def dist(self, other):
         """Returns euclidean distance to another profile."""
