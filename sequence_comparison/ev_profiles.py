@@ -41,12 +41,12 @@ class SequenceProfile(object):
         return eval(obj_repr)
 
     @classmethod
-    def create(cls, seq_record, ev_couplings):
+    def create(cls, seq_record, ev_couplings, incorporate_fields=True, top=None):
         """Calculate profile of a given sequence."""
         seq_profile = cls(seq_record.id, str(seq_record.seq))
         seq_profile.map_to_model(ev_couplings)
         seq_profile.extract_seq_specific_eijs(ev_couplings)
-        seq_profile.calc_profile(ev_couplings)
+        seq_profile.calc_profile(ev_couplings, incorporate_fields, top)
         return seq_profile
 
     def map_to_model(self, ev_couplings):
@@ -71,14 +71,22 @@ class SequenceProfile(object):
                 self.seq_eij[i, j] = self.seq_eij[j, i]\
                     = eijs[i, j, aa_map[res_i], aa_map[res_j]]
 
-    def calc_profile(self, ev_couplings):
+    def calc_profile(self, ev_couplings, incorporate_fields=True, top=None):
         """Calculate profile."""
-        # self.profile = list(np.sum(self.seq_eij, axis=1))
         self.profile = [
             ev_couplings.h_i[i, ev_couplings.alphabet_map[aa_i]] +
             0.5 * np.sum(self.seq_eij[i])
             for i, aa_i in enumerate(self.mapped_seq)
-        ]
+        ] if incorporate_fields else list(np.sum(self.seq_eij, axis=1))
+        if top is not None:
+            profile_indexed = zip(range(len(self.profile)), self.profile)
+            profile_sorted = sorted(profile_indexed, key=lambda x: x[-1],
+                                    reverse=True)
+            top_inds = [i for i, _ in profile_sorted[: top]]
+            self.profile = [
+                p_i if i in top_inds else 0
+                for i, p_i in profile_indexed
+            ]
 
     def dist(self, other):
         """Returns euclidean distance to another profile."""
@@ -102,16 +110,19 @@ class EVprofiles(object):
     HUMAN_PROFILES_FN = 'data/human_domains_from_scop.profiles'
 
     def __init__(self, query, eij_filename, human_seqs=None,
-                 normalization_mode=NormalizedEVcouplings.ABS_MAX):
+                 normalization_mode=NormalizedEVcouplings.ABS_MAX,
+                 incorporate_fields=True, top=None):
         ev_couplings = NormalizedEVcouplings(eij_filename, mode=normalization_mode)\
             if normalization_mode else EVcouplings(eij_filename)
         self.query = query
-        self.query_profile = SequenceProfile.create(self.query, ev_couplings)
+        self.query_profile = SequenceProfile.create(self.query, ev_couplings,
+                                                    incorporate_fields, top)
         if human_seqs is None:
             self.human_profiles = EVprofiles.load_profiles_from_file()
         else:
             self.human_profiles = [
-                SequenceProfile.create(seq_record, ev_couplings)
+                SequenceProfile.create(seq_record, ev_couplings,
+                                       incorporate_fields, top)
                 for seq_record in human_seqs
             ]
         self.dists_to_query = [
@@ -158,7 +169,8 @@ def init_parameters(args):
         norm_mode = None
     else:
         norm_mode = args.normalization_mode.lower()
-    return query, args.eij_file, human_seqs, norm_mode
+    top = int(args.top) if args.top is not None else None
+    return query, args.eij_file, human_seqs, norm_mode, args.incorporate_fields, top
 
 
 def command_line():
@@ -177,12 +189,18 @@ def command_line():
                         "by its maximum value), 'abs max' (normalize each absolute " +
                         "eij matrix by its maximum value) or 'none' (no normalization). " +
                         "(default: abs max)")
+    parser.add_argument('--top', '-t', required=False,
+                        help='Number of top profile values, others are set to zero ' +
+                             '(default: all profile values are used)')
     parser.add_argument('--human_sequences', '-s', required=False,
                         help='Human sequences in fasta format ' +
                              '(default: precalculated profiles of human sequences are used)')
     parser.add_argument('--num_of_resulting_sequences', '-n', required=False,
                         help='The given number of sequences with minimal distance ' +
                              'to query will be printed to fasta file (default: 1)')
+    parser.add_argument('--simple_eij_summation', dest='incorporate_fields',
+                        action='store_const', default=True, const=False,
+                        help='Calculate profiles without incorporating fields')
     args = parser.parse_args()
 
     ev_profiles = EVprofiles(*init_parameters(args))
