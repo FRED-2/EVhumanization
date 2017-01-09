@@ -79,10 +79,12 @@ class SequenceProfile(object):
             for i, aa_i in enumerate(self.mapped_seq)
         ] if incorporate_fields else list(np.sum(self.seq_eij, axis=1))
         if top is not None:
+            if top < 1:
+                top *= ev_couplings.L
             profile_indexed = zip(range(len(self.profile)), self.profile)
             profile_sorted = sorted(profile_indexed, key=lambda x: x[-1],
                                     reverse=True)
-            top_inds = [i for i, _ in profile_sorted[: top]]
+            top_inds = [i for i, _ in profile_sorted[: int(top)]]
             self.profile = [
                 p_i if i in top_inds else 0
                 for i, p_i in profile_indexed
@@ -169,7 +171,7 @@ def init_parameters(args):
         norm_mode = None
     else:
         norm_mode = args.normalization_mode.lower()
-    top = int(args.top) if args.top is not None else None
+    top = float(args.top) if args.top is not None else None
     return query, args.eij_file, human_seqs, norm_mode, args.incorporate_fields, top
 
 
@@ -190,7 +192,9 @@ def command_line():
                         "eij matrix by its maximum value) or 'none' (no normalization). " +
                         "(default: abs max)")
     parser.add_argument('--top', '-t', required=False,
-                        help='Number of top profile values, others are set to zero ' +
+                        help='Number of top profile values, others are set to zero. ' +
+                             'If the given number is < 1, then it will be interpreted' +
+                             'as fraction of the model length ' +
                              '(default: all profile values are used)')
     parser.add_argument('--human_sequences', '-s', required=False,
                         help='Human sequences in fasta format ' +
