@@ -11,6 +11,22 @@ from utilities.ev_couplings_v4 import EVcouplings
 from abstract_deimmu_prep import AbstractDeimmuPreparation
 
 
+_SMALL_HYDROPHOBIC_AA = list('AG')
+_LARGE_HYDROPHOBIC_AA = list('VLIMPFW')
+_POLAR_AA = list('STNQCY')
+_POS_CHARGED_AA = list('KRH')
+_NEG_CHARGED_AA = list('DE')
+
+_ALL_AA = [_SMALL_HYDROPHOBIC_AA, _LARGE_HYDROPHOBIC_AA, _POLAR_AA,
+           _POS_CHARGED_AA, _NEG_CHARGED_AA]
+
+
+def get_aa_list(aa):
+    for aa_list in _ALL_AA:
+        if aa in aa_list:
+            return aa_list
+
+
 class AntibodyDeimmuPreparation(AbstractDeimmuPreparation):
     """Preparation and generation of input files used to de-immunize
     an antibody sequence, i.e. allowing only backmutations.
@@ -30,12 +46,13 @@ class AntibodyDeimmuPreparation(AbstractDeimmuPreparation):
                as dictionary: key = (position 1, position 2, residue 1, residue 2), value = eij value
     """
 
-    def __init__(self, config, alignment, ev_couplings, source_seq):
+    def __init__(self, config, alignment, ev_couplings, source_seq,
+                 include_similar_amino_acids=False):
         super(AntibodyDeimmuPreparation, self).__init__(config, alignment, ev_couplings)
-        self.set_possible_mutations(source_seq)
+        self.set_possible_mutations(source_seq, include_similar_amino_acids)
         self.extract_ev_paras(ev_couplings)
 
-    def set_possible_mutations(self, source_seq):
+    def set_possible_mutations(self, source_seq, include_similar_amino_acids=False):
         """
             For each wildtype residue generate a set of possible
             amino acid substitutions.
@@ -46,6 +63,9 @@ class AntibodyDeimmuPreparation(AbstractDeimmuPreparation):
         for i, muts in enumerate(self.possible_mutations):
             if i not in self.excluded_pos and i not in self.ignored_pos:
                 muts.add(source_seq[mapping[i]])
+                if include_similar_amino_acids:
+                    similiar_aa = get_aa_list(source_seq[mapping[i]])
+                    muts.update(similiar_aa)
             print muts
 
 
@@ -56,7 +76,8 @@ def init_parameters(args):
     ev_couplings = EVcouplings(args.eij)
     with open(args.source, 'rU') as source_file:
         source_record = SeqIO.read(source_file, 'fasta')
-    return config, alignment, ev_couplings, str(source_record.seq).upper()
+    return (config, alignment, ev_couplings, str(source_record.seq).upper(),
+            args.include_similar_amino_acids)
 
 
 def command_line():
@@ -76,6 +97,10 @@ def command_line():
                         help='The output file of the data model (in AMPL/GMPL) format')
     parser.add_argument('--model', '-m', required=True, nargs=2,
                         help='The ILP model files in MathProg (first argument: imm, second argument: en)')
+    parser.add_argument('--include_similar_amino_acids', dest='include_similar_amino_acids',
+                        action='store_true',
+                        help='In addition to the murine amino acid at a certian position, ' +
+                             'also consider amino acis similiar to the murine one')
     args = parser.parse_args()
 
     deimmu = AntibodyDeimmuPreparation(*init_parameters(args))
