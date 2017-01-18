@@ -20,6 +20,9 @@ class NormalizedEVcouplings(EVcouplings):
     # normalize each absolute eij matrix by its maximum value
     ABS_MAX = 'abs max'
 
+    # set each eij entry to its maximum value (not really a normalization)
+    ABS = 'abs'
+
     def __init__(self, filename, mode=ABS_MAX,
                  alphabet=None, precision="float32"):
         super(NormalizedEVcouplings, self).__init__(filename, alphabet, precision)
@@ -37,13 +40,17 @@ class NormalizedEVcouplings(EVcouplings):
     @staticmethod
     def normalize_eij(eij, mode):
         """Normalize a single eij matrix in a certain way, specified by the mode."""
-        if mode in [NormalizedEVcouplings.MAX, NormalizedEVcouplings.ABS_MAX]:
+        if mode in [NormalizedEVcouplings.MAX, NormalizedEVcouplings.ABS_MAX,
+                    NormalizedEVcouplings.ABS]:
             abs_eij = abs(eij)
             norm_factor = np.amax(abs_eij)
         if mode == NormalizedEVcouplings.MAX:
             pass
         elif mode == NormalizedEVcouplings.ABS_MAX:
             eij = abs_eij
+        elif mode == NormalizedEVcouplings.ABS:
+            eij = abs_eij
+            norm_factor = 1
         else:
             print >> sys.stderr, 'Mode %s is not implemented.' % mode
             exit(1)
