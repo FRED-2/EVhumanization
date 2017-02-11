@@ -1,5 +1,20 @@
+"""Module providing the functionality to calculate and compare
+coevolution-based sequence profiles.
+
+The profile of a sequence s is a numerical vector of the same length as s,
+i.e. each profile value corresponds to a position in s.
+
+A profile value p_i of position i in sequence s can be calculated in two
+different ways:
+    (1) Simple summation of e_ij pair couplings:
+    p_i = sum_j=1^n e_ij(\sigma_i^s, \sigma_j^s)
+    (2) Additional incorporating of h_i fields:
+    p_i = h_i(\sigma_i^s) + 0.5 * sum_j=1^n e_ij(\sigma_i^s, \sigma_j^s)
+
+"""
+
 import sys
-import argparse
+from argparse import ArgumentParser
 import numpy as np
 from Bio import SeqIO
 from Bio import AlignIO
@@ -9,40 +24,93 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from scipy.spatial import distance
 
+from ev_couplings_normalized import ModificationMode
 from utilities.ev_couplings_v4 import EVcouplings
-from ev_couplings_normalized import NormalizedEVcouplings
+from ev_couplings_normalized import ModifiedEVcouplings
 
 
 class SequenceProfile(object):
-    """Representation of a coevolution-based profile of a specific sequence.
 
-    Attributes:
-        seq_id -- id of the sequence
-        seq -- sequence
-        mapped_seq -- of length N, seq mapped to target seq of the ev model
-        seq_eij -- NxN matrix of eij values specific to the sequence
-        profile -- coevolution-based profile of length N
+    """Representation of the coevolution-based profile of a specific sequence.
+
+    Parameters
+    ----------
+    seq_id : str
+        ID of `seq`.
+    seq : str
+        Sequence for which the profile is to be calculated.
+    profile : list of float, optional (default: None)
+        The coevolution-based profile of `seq`.
+
+    Attributes
+    ----------
+    seq_id : str
+        ID of `seq`.
+    seq : str
+        Sequence for which the profile is to be calculated.
+    mapped_seq : str (of length L)
+        `seq` mapped to the target sequence of the model.
+    seq_eij : np.array
+        Matrix of shape (L, L) containing the e_ij pair couplings specific to
+        `mapped_seq`.
+    profile : list of float (of length L)
+        The coevolution-based profile of `mapped_seq`.
+
     """
 
-    def __init__(self, seq_id, seq, mapped_seq=None, seq_eij=None, profile=None):
+    def __init__(self, seq_id, seq, profile=None):
         self.seq_id = seq_id
         self.seq = seq
-        self.mapped_seq = mapped_seq
-        self.seq_eij = seq_eij
         self.profile = profile
 
     def __repr__(self):
-        return 'SequenceProfile(seq_id=%r, seq=%r, profile=%r)'\
-            % (self.seq_id, self.seq, self.profile)
+        return ('SequenceProfile(seq_id=%r, seq=%r, profile=%r)'
+                % (self.seq_id, self.seq, self.profile))
 
     @classmethod
     def from_repr(cls, obj_repr):
-        """Construct SequenceProfile object from string representation."""
+        """Construct a sequence profile from string representation.
+
+        Parameters
+        ----------
+        obj_repr : str
+            String representation of a `SequenceProfile` object as generated
+            by the function `__repr__()`.
+
+        Returns
+        -------
+        `SequenceProfile`
+            The sequence profile associated with the string representation
+            provided.
+
+        """
         return eval(obj_repr)
 
     @classmethod
     def create(cls, seq_record, ev_couplings, incorporate_fields=True, top=None):
-        """Calculate profile of a given sequence."""
+        """Calculate the profile of a given sequence.
+
+        Parameters
+        ----------
+        seq_record : `SeqRecord`
+            Sequence for which the profile is to be calculated.
+        ev_couplings : `EVcouplings`
+            e_ij binaries read in.
+        incorporate_fields : bool, optional (default: True)
+            If true, h_i fields are included in the profile calculation.
+            Else, profiles are constructed only from e_ij pair couplings.
+        top : {float, int}, optional (default: None)
+            Number of top profile values used. All other profile positions are
+            set to 0. If the value given is less than 1, then `top` will be
+            interpreted as a fraction of all profile values. If `None`, all
+            profile positions are used.
+
+        Returns
+        -------
+        seq_profile : `SequenceProfile`
+            The resulting sequence profile.
+
+        """
         seq_profile = cls(seq_record.id, str(seq_record.seq))
         seq_profile.map_to_model(ev_couplings)
         seq_profile.extract_seq_specific_eijs(ev_couplings)
@@ -50,7 +118,14 @@ class SequenceProfile(object):
         return seq_profile
 
     def map_to_model(self, ev_couplings):
-        """Map sequence of interest to target sequence of the ev model."""
+        """Map the sequence of interest to the target sequence of the model.
+
+        Parameters
+        ----------
+        ev_couplings : `EVcouplings`
+            e_ij binaries read in.
+
+        """
         aln_target_seq, aln_seq, _, _, _ = pairwise2.align.globalds(
             ev_couplings.target_seq.tostring().upper(), self.seq.upper(),
             blosum62, -11, -1
@@ -59,20 +134,42 @@ class SequenceProfile(object):
                                    if not aln_target_seq[i] == '-'])
 
     def extract_seq_specific_eijs(self, ev_couplings):
-        """Create matrix of eij values regarding a specific sequence."""
+        """Create the matrix of e_ij values specific to the mapped sequence.
+
+        Parameters
+        ----------
+        ev_couplings : `EVcouplings`
+            e_ij binaries read in.
+
+        """
         aa_map = ev_couplings.alphabet_map
-        eijs = ev_couplings.normalized_e_ij\
-            if isinstance(ev_couplings, NormalizedEVcouplings)\
+        eijs = ev_couplings.modified_e_ij\
+            if isinstance(ev_couplings, ModifiedEVcouplings)\
             else ev_couplings.e_ij
         self.seq_eij = np.zeros((len(self.mapped_seq), len(self.mapped_seq)))
         for i in xrange(len(self.mapped_seq)):
-            for j in xrange(i+1, len(self.mapped_seq)):
+            for j in xrange(i + 1, len(self.mapped_seq)):
                 res_i, res_j = self.mapped_seq[i], self.mapped_seq[j]
                 self.seq_eij[i, j] = self.seq_eij[j, i]\
                     = eijs[i, j, aa_map[res_i], aa_map[res_j]]
 
     def calc_profile(self, ev_couplings, incorporate_fields=True, top=None):
-        """Calculate profile."""
+        """Calculate profile of the mapped sequence.
+
+        Parameters
+        ----------
+        ev_couplings : `EVcouplings`
+            e_ij binaries read in.
+        incorporate_fields : bool, optional (default: True)
+            If true, h_i fields are included in the profile calculation.
+            Else, profiles are constructed only from e_ij pair couplings.
+        top : {float, int}, optional (default: None)
+            Number of top profile values used. All other profile positions are
+            set to 0. If the value given is less than 1, then `top` will be
+            interpreted as a fraction of all profile values. If `None`, all
+            profile positions are used.
+
+        """
         self.profile = [
             ev_couplings.h_i[i, ev_couplings.alphabet_map[aa_i]] +
             0.5 * np.sum(self.seq_eij[i])
@@ -96,26 +193,52 @@ class SequenceProfile(object):
 
 
 class EVprofiles(object):
+
     """Pairwise comparison of a query sequence to a set of other sequences
     by coevolution-based profiles.
 
-    Attributes:
-        query -- SeqRecord of the query sequence
-        query_profile -- profile of the query sequence
-        human_profiles -- other profiles the query gets compared to
-                          (not necessarily human of course)
-        dists_to_query -- distances of the human_profiles to query_profile
-                          as list of tuples (human profile, distance to query)
+    Parameters
+    ----------
+    query : `SeqRecord`
+        The query sequence which gets compared to a set of other sequences.
+    eij_filename : str
+        Name of the binary file containing the model.
+    human_seqs : list of `SeqRecord`, optional (default: None)
+        The list of sequences that `query` gets compared to.
+        If `None`, then precalculated profiles are used.
+    modification_mode : str (ModificationMode.{ABS, ABS_MAX, MAX}), optional (default: ModificationMode.ABS)
+        Mode to modify the e_ij pair couplings.
+    incorporate_fields : bool, optional (default: True)
+        If true, h_i fields are included in the profile calculation.
+        Else, profiles are constructed only from e_ij pair couplings.
+    top : {float, int}, optional (default: None)
+        Number of top profile values used. All other profile positions are
+        set to 0. If the value given is less than 1, then `top` will be
+        interpreted as a fraction of all profile values. If `None`, all
+        profile positions are used.
+
+    Attributes
+    ----------
+    query : `SeqRecord`
+        The query sequence which gets compared to a set of other sequences.
+    query_profile : `SequenceProfile`
+        The profile of `query`.
+    human_profiles : list of `SequenceProfile`
+        The list of profiles that `query_profile` gets compared to.
+    dists_to_query : list of tuple of length 2 (`SequenceProfile`, float)
+        List of euclidean distances from `query_profile` to `human_profiles`,
+        as list of tuples: (human profile, distance to query profile).
+
     """
 
     # path to precalculated profiles
-    HUMAN_PROFILES_FN = 'data/human_domains_from_scop.profiles'
+    HUMAN_PROFILES_FN = 'data/human_domains_from_digit.profiles'
 
     def __init__(self, query, eij_filename, human_seqs=None,
-                 normalization_mode=NormalizedEVcouplings.ABS_MAX,
+                 modification_mode=ModificationMode.ABS,
                  incorporate_fields=True, top=None):
-        ev_couplings = NormalizedEVcouplings(eij_filename, mode=normalization_mode)\
-            if normalization_mode else EVcouplings(eij_filename)
+        ev_couplings = ModifiedEVcouplings(eij_filename, mode=modification_mode)\
+            if modification_mode else EVcouplings(eij_filename)
         self.query = query
         self.query_profile = SequenceProfile.create(self.query, ev_couplings,
                                                     incorporate_fields, top)
@@ -127,92 +250,125 @@ class EVprofiles(object):
                                        incorporate_fields, top)
                 for seq_record in human_seqs
             ]
-        self.dists_to_query = [
+        self.dists_to_query = [  # TODO: use numpy
             (human_profile, self.query_profile.dist(human_profile))
             for human_profile in self.human_profiles
         ]
         self.dists_to_query = sorted(self.dists_to_query, key=lambda x: x[1])
 
     def to_file(self, out, num=1):
+        """Write top human sequence(s) to fasta file.
+
+        The given number of profiles with minimum distance to the query are
+        written to file.
+
+        Parameters
+        ----------
+        out : str
+            Name of the ouput file.
+        num : int
+            Number of sequences to be written to file. If `None`, all sequences
+            are written to file (in order of increasing distance to the query).
+
         """
-            Write first num sequences with minimum distances from the query
-            to file in fasta format.
-        """
-        top_dists_to_query = self.dists_to_query[:num]
+        top_dists_to_query = self.dists_to_query[:num]\
+            if num is not None else self.dists_to_query
         with open(out, 'w') as f:
             for profile, dist in top_dists_to_query:
-                f.write('>%s distance_from_%s=%f\n' % (profile.seq_id, self.query.id, dist))
+                f.write('>%s distance_from_%s=%f\n'
+                        % (profile.seq_id, self.query.id, dist))
                 f.write(profile.seq + '\n')
-        print('resulting sequences written to %s' % out)
+
+    def to_stdout(self, num=1):
+        """Write top human sequence(s) to stdout in fasta format.
+
+        The given number of profiles with minimum distance to the query are
+        written to stdout.
+
+        Parameters
+        ----------
+        num : int
+            Number of sequences to be written to file. If `None`, all sequences
+            are written to file (in order of increasing distance to the query).
+
+        """
+        top_dists_to_query = self.dists_to_query[:num]\
+            if num is not None else self.dists_to_query
+        for profile, dist in top_dists_to_query:
+            print ('>%s distance_from_%s=%f\n%s'
+                   % (profile.seq_id, self.query.id, dist, profile.seq))
 
     @staticmethod
     def load_profiles_from_file():
         """Load precalculated profiles of a set of sequences from file."""
         with open(EVprofiles.HUMAN_PROFILES_FN, 'rU') as in_file:
-            human_profiles = [
+            return [
                 SequenceProfile.from_repr(seq_profile_repr)
                 for seq_profile_repr in in_file.readlines()
             ]
-        return human_profiles
 
 
-def init_parameters(args):
-    """Read in and process parameters obtained from the command line."""
-    with open(args.query) as query_file:
-        query = SeqIO.read(query_file, 'fasta')
-    try:
-        with open(args.human_sequences, 'rU') as seq_file:
-            human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
-    except TypeError:
-        human_seqs = None
-    if args.normalization_mode is None:
-        norm_mode = NormalizedEVcouplings.ABS_MAX
-    elif args.normalization_mode.lower() == 'none':
-        norm_mode = None
-    else:
-        norm_mode = args.normalization_mode.lower()
-    top = float(args.top) if args.top is not None else None
-    return query, args.eij_file, human_seqs, norm_mode, args.incorporate_fields, top
+def init_params(args):
+    """Initialize arguments parsed from the command line."""
+    args.query = SeqIO.read(args.query, 'fasta')
+    args.human_seqs = args.human_seqs if args.human_seqs is None\
+        else list(SeqIO.parse(args.human_seqs, 'fasta'))
+    args.modification_mode = ModificationMode.getMode(args.modification_mode)\
+        if args.modification_mode.lower() != 'none' else None
+    return args
 
 
 def command_line():
-    parser = argparse.ArgumentParser(
-        description='Compare query sequence to a set of human sequences ' +
-                    'by coevolution-based profiles'
-    )
-    parser.add_argument('--query', '-q', required=True,
-                        help='Query sequence (in fasta format)')
-    parser.add_argument('--eij_file', '-e', required=True,
-                        help='eij file')
-    parser.add_argument('--out', '-o', required=True,
-                        help='Output file')
-    parser.add_argument('--normalization_mode', '-m', required=False,
-                        help="Normalization mode, one of 'max' (normalize each eij matrix " +
-                        "by its maximum value), 'abs max' (normalize each absolute " +
-                        "eij matrix by its maximum value) or 'none' (no normalization). " +
-                        "(default: abs max)")
-    parser.add_argument('--top', '-t', required=False,
-                        help='Number of top profile values, others are set to zero. ' +
-                             'If the given number is < 1, then it will be interpreted' +
-                             'as fraction of the model length ' +
-                             '(default: all profile values are used)')
-    parser.add_argument('--human_sequences', '-s', required=False,
-                        help='Human sequences in fasta format ' +
-                             '(default: precalculated profiles of human sequences are used)')
+    """Define parser to read arguments from the command line."""
+    parser = ArgumentParser(description="""Pairwise comparison of a query
+                            sequence to a set of other sequences by
+                            coevolution-based profiles.""")
+    parser.add_argument('query', help="""The query sequence which gets compared
+                        to a set of other sequences. Usually, this is the non-human
+                        antibody sequence to be humanized.""")
+    parser.add_argument('eij_filename', help="""e_ij binary file.""")
+    parser.add_argument('--modification_mode', '-m', required=False,
+                        choices=['none', 'max', 'abs_max', 'abs'],
+                        default='abs', help="""Modification mode, applied to
+                        the e_ij pair couplings. Must be one of: 'none' (no
+                        modification), 'max' (normalize each e_ij matrix by its
+                        absolute maximum value), 'abs_max' (normalize each absolute
+                        e_ij matrix by its maximum value) or 'abs' (set each e_ij
+                        entry to its absolute value). The default is 'abs'.""")
+    parser.add_argument('--top', '-t', required=False, type=float,
+                        help="""Number of top profile values used. All other
+                        profile positions are set to 0. If the value given is
+                        less than 1, then it will be interpreted as a fraction
+                        of all profile values. As default, all profile positions
+                        are used.""")
+    parser.add_argument('--human_seqs', '-s', required=False,
+                        help="""The sequences that the query sequence gets
+                        compared to. Usually, this is a set of human sequences.
+                        As default, precalculated profiles are used.""")
     parser.add_argument('--num_of_resulting_sequences', '-n', required=False,
-                        help='The given number of sequences with minimal distance ' +
-                             'to query will be printed to fasta file (default: 1)')
+                        type=int, default=1, help=""""The value given defines the
+                        number of top sequences that will be printed. The N top
+                        sequences are the N first sequences whose profiles have
+                        minimal distance to the queries profile (default: N=1).""")
     parser.add_argument('--simple_eij_summation', dest='incorporate_fields',
-                        action='store_const', default=True, const=False,
-                        help='Calculate profiles without incorporating fields')
-    args = parser.parse_args()
+                        action='store_false', help="""Calculate profiles without
+                        incorporating fields. A profile value will be calculated
+                        as a simple summation of e_ij pair couplings specific
+                        for the sequence of interest.""")
+    parser.add_argument('--out', '-o', required=False, help='Output file')
+    return init_params(parser.parse_args())
 
-    ev_profiles = EVprofiles(*init_parameters(args))
 
-    if args.num_of_resulting_sequences is not None:
-        ev_profiles.to_file(args.out, int(args.num_of_resulting_sequences))
-    else:
-        ev_profiles.to_file(args.out)
+def main(args):
+    """Initialize EV profiles and write results."""
+    ev_profiles = EVprofiles(args.query, args.eij_filename, args.human_seqs,
+                             args.modification_mode, args.incorporate_fields,
+                             args.top)
+    ev_profiles.to_file(args.out, num=args.num_of_resulting_sequences)\
+        if args.out is not None\
+        else ev_profiles.to_stdout(num=args.num_of_resulting_sequences)
+
 
 if __name__ == '__main__':
-    command_line()
+    args = command_line()
+    main(args)

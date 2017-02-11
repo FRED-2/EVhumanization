@@ -1,54 +1,84 @@
 import sys
-import argparse
+from argparse import ArgumentParser
 from Bio import SeqIO
+import time
 
 from ev_profiles import SequenceProfile
 from ev_profiles import EVprofiles
 
 from utilities.ev_couplings_v4 import EVcouplings
-from ev_couplings_normalized import NormalizedEVcouplings
+from ev_couplings_normalized import ModifiedEVcouplings, ModificationMode
 
 
-def precalculate_profiles(human_seqs, eij_file, mode=NormalizedEVcouplings.ABS_MAX):
-    """Calculate profiles based on normalized eijs."""
-    ev_couplings = EVcouplings(eij_file) if mode == 'no'\
-        else NormalizedEVcouplings(eij_file, mode)
-    return [SequenceProfile.create(seq_record, ev_couplings)
-            for seq_record in human_seqs]
+def precalculate_profiles(human_seqs, eij_filename, out,
+                          modification_mode=ModificationMode.ABS,
+                          incorporate_fields=True):
+    """Precalculate profiles and write their string representation to file.
+
+    Parameters
+    ----------
+    human_seqs : list of `SeqRecord`
+        Sequences for which profiles are to be precalculated.
+    eij_filename : str
+        Name of the binary e_ij file.
+    out : str
+        Name of the output file.
+    mode : str (ModificationMode.{MAX, ABS_MAX, ABS}), optional (default: ModificationMode.ABS)
+        Modification mode, applied to the e_ij pair couplings.
+    incorporate_fields : bool, optional (default: True)
+        If true, h_i fields are included in the profile calculation.
+        Else, profiles are constructed only from e_ij pair couplings.
+
+    """
+    ev_couplings = EVcouplings(eij_filename) if modification_mode is None\
+        else ModifiedEVcouplings(eij_filename, modification_mode)
+    start = time.time()
+    with open(out, 'w') as f:
+        for i, seq_record in enumerate(human_seqs):
+            f.write(repr(SequenceProfile.create(seq_record, ev_couplings)) + '\n')
+            print >> sys.stderr, i + 1, '/', len(human_seqs), 'done'
+    end = time.time()
+    print >> sys.stderr, 'Elapsed time: %.2fs' % (end - start)
 
 
-def write_to_file(profiles, out):
-    """Write profiles to file."""
-    with open(out, 'w') as out_file:
-        for p in profiles:
-            out_file.write(repr(p) + '\n')
-    print 'profiles written to %s' % out
+def init_params(args):
+    """Initialize arguments parsed from the command line."""
+    args.human_seqs = list(SeqIO.parse(args.human_seqs, 'fasta'))
+    args.modification_mode = ModificationMode.getMode(args.modification_mode)\
+        if args.modification_mode.lower() != 'none' else None
+    return args
 
 
 def command_line():
-    parser = argparse.ArgumentParser(
-        description='Precalculate coevolution-based profiles of given human sequences'
-    )
-    parser.add_argument('--sequences', '-s', required=True,
-                        help='Sequences whose profiles are to be precalculated ' +
-                             '(in fasta format)')
-    parser.add_argument('--eij_file', '-e', required=True, help='eij file')
-    parser.add_argument('--out', '-o', required=True, help='Output file')
-    parser.add_argument('--normalization', '-n', required=False,
-                        help="Normalization mode (one of: 'max', 'abs max', 'no'); " +
-                             'no: no normalization, ' +
-                             'max: normalize each eij matrix by its maximum value, ' +
-                             'abs max: normalize each absolute eij matrix by its maximum value (default)')
-    args = parser.parse_args()
+    """Define parser to read arguments from the command line."""
+    parser = ArgumentParser(description="""Precalculate coevolution-based
+                            sequence profiles of a set of sequences.""")
+    parser.add_argument('human_seqs', help="""The sequences that the query
+                        sequence gets compared to. Usually, this is a set of
+                        human sequences. As default, precalculated profiles are
+                        used.""")
+    parser.add_argument('eij_filename', help="""e_ij binary file.""")
+    parser.add_argument('out', help='Output file')
+    parser.add_argument('--modification_mode', '-m', required=False,
+                        choices=['none', 'max', 'abs_max', 'abs'],
+                        default='abs', help="""Modification mode, applied to
+                        the e_ij pair couplings. Must be one of: 'none' (no
+                        modification), 'max' (normalize each e_ij matrix by its
+                        absolute maximum value), 'abs_max' (normalize each absolute
+                        e_ij matrix by its maximum value) or 'abs' (set each e_ij
+                        entry to its absolute value). The default is 'abs'.""")
+    parser.add_argument('--simple_eij_summation', dest='incorporate_fields',
+                        action='store_false', help="""Calculate profiles without
+                        incorporating fields. A profile value will be calculated
+                        as a simple summation of e_ij pair couplings specific
+                        for the sequence of interest.""")
+    return init_params(parser.parse_args())
 
-    with open(args.sequences, 'rU') as seq_file:
-        human_seqs = list(SeqIO.parse(seq_file, 'fasta'))
 
-    profiles = precalculate_profiles(human_seqs, args.eij_file)\
-        if args.normalization is None\
-        else precalculate_profiles(human_seqs, args.eij_file, args.normalization)
+def main(args):
+    precalculate_profiles(**vars(args))
 
-    write_to_file(profiles, args.out)
 
 if __name__ == '__main__':
-    command_line()
+    args = command_line()
+    main(args)
