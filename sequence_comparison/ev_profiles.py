@@ -53,7 +53,7 @@ class SequenceProfile(object):
     seq_eij : np.array
         Matrix of shape (L, L) containing the e_ij pair couplings specific to
         `mapped_seq`.
-    profile : list of float (of length L)
+    profile : np.array (of length L)
         The coevolution-based profile of `mapped_seq`.
 
     """
@@ -65,7 +65,7 @@ class SequenceProfile(object):
 
     def __repr__(self):
         return ('SequenceProfile(seq_id=%r, seq=%r, profile=%r)'
-                % (self.seq_id, self.seq, self.profile))
+                % (self.seq_id, self.seq, list(self.profile)))
 
     @classmethod
     def from_repr(cls, obj_repr):
@@ -84,7 +84,9 @@ class SequenceProfile(object):
             provided.
 
         """
-        return eval(obj_repr)
+        profile = eval(obj_repr)
+        profile.profile = np.array(profile.profile)
+        return profile
 
     @classmethod
     def create(cls, seq_record, ev_couplings, incorporate_fields=True, top=None):
@@ -170,11 +172,15 @@ class SequenceProfile(object):
             profile positions are used.
 
         """
-        self.profile = [
-            ev_couplings.h_i[i, ev_couplings.alphabet_map[aa_i]] +
-            0.5 * np.sum(self.seq_eij[i])
-            for i, aa_i in enumerate(self.mapped_seq)
-        ] if incorporate_fields else list(np.sum(self.seq_eij, axis=1))
+        self.profile = np.zeros(len(self.mapped_seq))
+        if incorporate_fields:
+            for i, aa_i in enumerate(self.mapped_seq):
+                self.profile[i] = (
+                    ev_couplings.h_i[i, ev_couplings.alphabet_map[aa_i]] +
+                    0.5 * np.sum(self.seq_eij[i])
+                )
+        else:
+            self.profile = np.sum(self.seq_eij, axis=1)
         if top is not None:
             if top < 1:
                 top *= ev_couplings.L
@@ -182,10 +188,8 @@ class SequenceProfile(object):
             profile_sorted = sorted(profile_indexed, key=lambda x: x[-1],
                                     reverse=True)
             top_inds = [i for i, _ in profile_sorted[: int(top)]]
-            self.profile = [
-                p_i if i in top_inds else 0
-                for i, p_i in profile_indexed
-            ]
+            for i, p_i in profile_indexed:
+                self.profile[i] = p_i if i in top_inds else 0
 
     def dist(self, other):
         """Returns euclidean distance to another profile."""
@@ -239,9 +243,13 @@ class EVprofiles(object):
                  incorporate_fields=True, top=None):
         ev_couplings = ModifiedEVcouplings(eij_filename, mode=modification_mode)\
             if modification_mode else EVcouplings(eij_filename)
+
+        # create query profile
         self.query = query
         self.query_profile = SequenceProfile.create(self.query, ev_couplings,
                                                     incorporate_fields, top)
+
+        # get human profiles
         if human_seqs is None:
             self.human_profiles = EVprofiles.load_profiles_from_file()
         else:
@@ -250,10 +258,15 @@ class EVprofiles(object):
                                        incorporate_fields, top)
                 for seq_record in human_seqs
             ]
-        self.dists_to_query = [  # TODO: use numpy
-            (human_profile, self.query_profile.dist(human_profile))
-            for human_profile in self.human_profiles
-        ]
+
+        # calculate pairwise distances from the query to the human sequences
+        np_human_profiles = np.empty((len(self.human_profiles), len(self.query_profile.profile)))
+        for i, human_profile in enumerate(self.human_profiles):
+            np_human_profiles[i] = human_profile.profile
+        np_human_profiles -= self.query_profile.profile
+        np_dists_to_query = np.linalg.norm(np_human_profiles, axis=1)
+        self.dists_to_query = [(profile, np_dists_to_query[i])
+                               for i, profile in enumerate(self.human_profiles)]
         self.dists_to_query = sorted(self.dists_to_query, key=lambda x: x[1])
 
     def to_file(self, out, num=1):

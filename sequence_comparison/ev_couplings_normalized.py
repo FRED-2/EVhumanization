@@ -88,6 +88,5 @@ class ModifiedEVcouplings(EVcouplings):
             exit('Modification mode %s is not implemented.' % self.mode)
 
         max_eij = np.amax(abs_eij_matrix)
-        norm = np.vectorize(lambda eij_value: eij_value / float(max_eij))
+        normalize = np.vectorize(lambda eij_value: eij_value / float(max_eij))
         self.modified_e_ij = normalize(base_eij_matrix)
-        return normalize(base_eij_matrix)
