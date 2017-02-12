@@ -24,9 +24,9 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from scipy.spatial import distance
 
-from ev_couplings_normalized import ModificationMode
 from utilities.ev_couplings_v4 import EVcouplings
-from ev_couplings_normalized import ModifiedEVcouplings
+from ev_couplings_modified import ModifiedEVcouplings, ModificationMode
+from smart_tools import smart_open, split_args
 
 
 class SequenceProfile(object):
@@ -269,11 +269,11 @@ class EVprofiles(object):
                                for i, profile in enumerate(self.human_profiles)]
         self.dists_to_query = sorted(self.dists_to_query, key=lambda x: x[1])
 
-    def to_file(self, out, num=1):
-        """Write top human sequence(s) to fasta file.
+    def to_file(self, out=None, num_of_resulting_sequences=1):
+        """Write top human sequence(s) to file or stdout in fasta format.
 
         The given number of profiles with minimum distance to the query are
-        written to file.
+        written to file or stdout.
 
         Parameters
         ----------
@@ -284,32 +284,13 @@ class EVprofiles(object):
             are written to file (in order of increasing distance to the query).
 
         """
-        top_dists_to_query = self.dists_to_query[:num]\
-            if num is not None else self.dists_to_query
-        with open(out, 'w') as f:
+        top_dists_to_query = self.dists_to_query[:num_of_resulting_sequences]\
+            if num_of_resulting_sequences is not None else self.dists_to_query
+        with smart_open(out) as f:
             for profile, dist in top_dists_to_query:
-                f.write('>%s distance_from_%s=%f\n'
-                        % (profile.seq_id, self.query.id, dist))
-                f.write(profile.seq + '\n')
-
-    def to_stdout(self, num=1):
-        """Write top human sequence(s) to stdout in fasta format.
-
-        The given number of profiles with minimum distance to the query are
-        written to stdout.
-
-        Parameters
-        ----------
-        num : int
-            Number of sequences to be written to file. If `None`, all sequences
-            are written to file (in order of increasing distance to the query).
-
-        """
-        top_dists_to_query = self.dists_to_query[:num]\
-            if num is not None else self.dists_to_query
-        for profile, dist in top_dists_to_query:
-            print ('>%s distance_from_%s=%f\n%s'
-                   % (profile.seq_id, self.query.id, dist, profile.seq))
+                print >> f, ('>%s distance_from_%s=%f'
+                             % (profile.seq_id, self.query.id, dist))
+                print >> f, profile.seq
 
     @staticmethod
     def load_profiles_from_file():
@@ -374,12 +355,9 @@ def command_line():
 
 def main(args):
     """Initialize EV profiles and write results."""
-    ev_profiles = EVprofiles(args.query, args.eij_filename, args.human_seqs,
-                             args.modification_mode, args.incorporate_fields,
-                             args.top)
-    ev_profiles.to_file(args.out, num=args.num_of_resulting_sequences)\
-        if args.out is not None\
-        else ev_profiles.to_stdout(num=args.num_of_resulting_sequences)
+    out_args, main_args = split_args(args, 'out', 'num_of_resulting_sequences')
+    ev_profiles = EVprofiles(**main_args)
+    ev_profiles.to_file(**out_args)
 
 
 if __name__ == '__main__':

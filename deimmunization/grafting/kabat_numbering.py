@@ -14,6 +14,8 @@ import argparse
 from Bio import SeqIO
 from collections import defaultdict
 
+from smart_tools import smart_open
+
 
 class SimpleTextParser(HTMLParser):
 
@@ -77,22 +79,14 @@ class KabatNumbering():
         return ('KabatNumbering [sequence=%s, kabat_list=%s, kabat_dict=%s]'
                 % (self.sequence, self.kabat_list, self.kabat_dict))
 
-    def to_file(self, out):
-        """Write Kabat numbering of the provided sequence to file."""
-        with open(out, 'w') as out_file:
-            out_file.write('# Kabat numbering\n')
-            out_file.write('# id: %s\n# name: %s\n# description: %s\n'
-                           % (self.sequence.id, self.sequence.name,
-                              self.sequence.description))
-            out_file.write(''.join(self._rawdata))
-
-    def to_stdout(self):
-        """Write Kabat numbering of the provided sequence to stdout."""
-        print >> sys.stderr, '# Kabat numbering'
-        print >> sys.stderr, ('# id: %s\n# name: %s\n# description: %s'
-                              % (self.sequence.id, self.sequence.name,
-                                 self.sequence.description))
-        print ''.join(self._rawdata)
+    def to_file(self, out=None):
+        """Write Kabat numbering of the provided sequence to file or stdout."""
+        with smart_open(out) as f:
+            print >> f, '# Kabat numbering'
+            print >> f, ('# id: %s\n# name: %s\n# description: %s'
+                         % (self.sequence.id, self.sequence.name,
+                            self.sequence.description))
+            print >> f, ''.join(self._rawdata)
 
 
 def main():
@@ -100,10 +94,10 @@ def main():
     if len(sys.argv[1:]) < 1 or len(sys.argv[1:]) > 2:
         sys.exit('python %s <sequence> [<out>]' % sys.argv[0])
     seq_record = SeqIO.read(sys.argv[1], 'fasta')
+    out = sys.argv[2] if len(sys.argv[1:]) == 2 else None
 
     kabat_numbering = KabatNumbering(seq_record)
-    kabat_numbering.to_file(sys.argv[2]) if len(sys.argv[1:]) >= 2\
-        else kabat_numbering.to_stdout()
+    kabat_numbering.to_file(out)
 
 
 if __name__ == '__main__':

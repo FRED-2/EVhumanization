@@ -29,6 +29,7 @@ from Bio.SubsMat import MatrixInfo as matlist
 
 from kabat_numbering import KabatNumbering
 from contacts_from_structure import download_pdb_file, make_contact_map
+from smart_tools import smart_open
 
 
 class Grafting(object):
@@ -137,12 +138,14 @@ class Grafting(object):
         )
         residues_to_graft_mapped = [self.mapping[res_num]
                                     for res_num in self.residues_to_graft]
-        print >> sys.stderr, 'Template indices of residues grafted (CDR residues):'
-        print ','.join(map(lambda x: str(x - 1),
-                           [x for x in residues_to_graft_mapped if not x == -1]))
+        print >> sys.stderr, 'Template indices of residues grafted:'
+        print >> sys.stderr, ','.join(
+            map(lambda x: str(x - 1),
+                [x for x in residues_to_graft_mapped if not x == -1])
+        )
 
-    def to_file(self, output):
-        """Write the humanized sequence to file in fasta format.
+    def to_file(self, output=None):
+        """Write the humanized sequence to file in fasta format or to stdout.
 
         Parameters
         ----------
@@ -150,13 +153,12 @@ class Grafting(object):
             Name of the output file.
 
         """
-        with open(output, 'w') as out_file:
+        with smart_open(output) as f:
             descr = 'Humanization by %s: ' % self.__class__.__name__
             descr += 'fusion of non-human %s and human %s'\
                      % (self.sequence.id, self.template.id)
-            out_file.write('>%s %s\n' % (self.humanized_seq.id, descr))
-            out_file.write(str(self.humanized_seq.seq))
-        print >> sys.stderr, 'Humanized sequence written to %s' % output
+            print >> f, '>%s %s' % (self.humanized_seq.id, descr)
+            print >> f, str(self.humanized_seq.seq)
 
 
 class CDRGrafting(Grafting):
@@ -443,8 +445,6 @@ def command_line():
     parser.add_argument('template', help="""The human template sequence used to
                         humanize the non-human antibody sequence, provided in
                         fasta format.""")
-    parser.add_argument('out', help="""Name of the output fasta file containing
-                        the resulting humanized sequence.""")
     parser.add_argument('--pdb_id', '-p', required=False, help="""PDB ID of the
                         structure to be used to determine antigen contacts of
                         the antibody sequence to be humanized.""")
@@ -459,6 +459,9 @@ def command_line():
     parser.add_argument('--manual', '-m', required=False, nargs='+', type=int,
                         help="""The non-human residues to be grafted onto the
                         human template sequence.""")
+    parser.add_argument('--out', '-o', required=False, help="""Name of the output
+                        fasta file containing the resulting humanized sequence.
+                        Default is stdout.""")
     return init_params(parser.parse_args())
 
 

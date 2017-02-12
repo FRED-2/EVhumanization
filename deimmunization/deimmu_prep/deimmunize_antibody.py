@@ -17,6 +17,7 @@ from Bio import SeqIO
 
 from utilities.ev_couplings_v4 import EVcouplings
 from abstract_deimmu_prep import AbstractDeimmuPreparation
+from smart_tools import split_args
 
 
 _SMALL_HYDROPHOBIC_AA = list('AG')
@@ -184,10 +185,10 @@ def command_line():
 
 def main(args):
     """Call antibody de-immunization preparation and write data and lp files."""
-    sub_args = {k: v for k, v in vars(args).iteritems() if k not in ['model', 'out']}
-    deimmu = AntibodyDeimmuPreparation(**sub_args)
+    out_args, main_args = split_args(args, 'model', 'out')
+    deimmu = AntibodyDeimmuPreparation(**main_args)
     deimmu.to_data_file(args.out)
-    deimmu.generate_lp_files(args.out, args.model)
+    deimmu.generate_lp_files(**out_args)
 
 
 if __name__ == '__main__':
