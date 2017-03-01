@@ -50,6 +50,18 @@ class KabatNumbering():
 
     """
 
+    ALPHABET = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+
+    # CDRs of light chain defined by Kabat
+    L_1 = ((24, ''), (34, ''))
+    L_2 = ((50, ''), (56, ''))
+    L_3 = ((89, ''), (97, ''))
+
+    # CDRs of heavy chain defined by Kabat
+    H_1 = ((31, ''), (35, 'B'))
+    H_2 = ((50, ''), (65, ''))
+    H_3 = ((95, ''), (102, ''))
+
     def __init__(self, sequence):
         self.sequence = sequence
         abnum_url = ('http://www.bioinf.org.uk/cgi-bin/abnum/'

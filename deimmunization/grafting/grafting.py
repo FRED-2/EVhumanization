@@ -125,24 +125,67 @@ class Grafting(object):
 
     def graft(self):
         """Graft a subset of residues of the non-human sequence onto the human sequence."""
-        mod_seq = list(self.template.seq)
-        for res_num in self.residues_to_graft:
-            tem_res_num = self.mapping[res_num]
-            if tem_res_num != -1:
-                mod_seq[tem_res_num - 1] = self.sequence.seq[res_num - 1]
+        modified_seq, modified_pos = self._graft_by_replacing_cdrs()\
+            if isinstance(self, CDRGrafting) else self._graft_map_guided()
         self.humanized_seq = SeqRecord(
-            seq=Seq(''.join(mod_seq), SingleLetterAlphabet()),
+            seq=Seq(''.join(modified_seq), SingleLetterAlphabet()),
             id='humanized_%s' % self.sequence.id,
             name='humanized %s' % self.sequence.id,
             description='%s humanized by %s' % (self.sequence.id, self.template.id)
         )
+        print >> sys.stderr, 'Template indices of residues grafted:'
+        print >> sys.stderr, ','.join(map(str, modified_pos))
+
+    def _graft_map_guided(self):
+        """Graft residues guided by the mapping from the sequence to the template.
+
+        Returns
+        -------
+        modified_seq : str
+            The resulting sequence consisting of human and non-human residues.
+        modified_pos : list of int
+            Positions of non-human sequence that got replaced by the non-human
+            counterpart.
+
+        """
+        modified_seq = list(self.template.seq)
+        for res_num in self.residues_to_graft:
+            tem_res_num = self.mapping[res_num]
+            if tem_res_num != -1:
+                modified_seq[tem_res_num - 1] = self.sequence.seq[res_num - 1]
         residues_to_graft_mapped = [self.mapping[res_num]
                                     for res_num in self.residues_to_graft]
-        print >> sys.stderr, 'Template indices of residues grafted:'
-        print >> sys.stderr, ','.join(
-            map(lambda x: str(x - 1),
-                [x for x in residues_to_graft_mapped if not x == -1])
-        )
+        modified_pos = map(lambda x: str(x - 1),
+                           [x for x in residues_to_graft_mapped if not x == -1])
+        return modified_seq, modified_pos
+
+    def _graft_by_replacing_cdrs(self):
+        """Graft by replacing the human CDRs by the non-human CDRs.
+
+        Returns
+        -------
+        modified_seq : str
+            The resulting sequence consisting of human framework regions and
+            non-human CDRs.
+        modified_pos : list of int
+            Positions of non-human sequence that got replaced by the non-human
+            counterpart.
+
+        """
+        kabat_tem = KabatNumbering(self.template)
+        cdr_tem = CDRGrafting.find_cdr_residues(kabat_tem)
+        tem_framework = ''.join(tem_res if i + 1 not in cdr_tem else ' '
+                                for i, tem_res in enumerate(self.template)).split()
+        seq_cdrs = ''.join(seq_res if i + 1 in self.residues_to_graft else ' '
+                           for i, seq_res in enumerate(self.sequence)).split()
+        modified_seq, modified_pos = '', []
+        for i in range(3):
+            modified_seq += tem_framework[i]
+            modified_pos.extend(range(len(modified_seq),
+                                      len(modified_seq) + len(seq_cdrs[i])))
+            modified_seq += seq_cdrs[i]
+        modified_seq += tem_framework[3]
+        return modified_seq, modified_pos
 
     def to_file(self, output=None):
         """Write the humanized sequence to file in fasta format or to stdout.
@@ -193,18 +236,6 @@ class CDRGrafting(Grafting):
 
     """
 
-    # CDRs of light chain defined by Kabat
-    L_1 = ((24, ''), (34, ''))
-    L_2 = ((50, ''), (56, ''))
-    L_3 = ((89, ''), (97, ''))
-
-    # CDRs of heavy chain defined by Kabat
-    H_1 = ((31, ''), (35, 'B'))
-    H_2 = ((50, ''), (65, ''))
-    H_3 = ((95, ''), (102, ''))
-
-    _ALPHABET = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-
     def __init__(self, sequence, template):
         super(CDRGrafting, self).__init__(sequence, template)
         self.kabat_seq = KabatNumbering(sequence)
@@ -213,23 +244,28 @@ class CDRGrafting(Grafting):
 
     def find_residues_to_graft(self):
         """Extract CDR residues of the antibody sequence to be humanized."""
-        mode = self.kabat_seq.kabat_list[0][0][0]
-        loop_regions = [CDRGrafting.L_1, CDRGrafting.L_2, CDRGrafting.L_3]\
-            if mode == 'L' else [CDRGrafting.H_1, CDRGrafting.H_2, CDRGrafting.H_3]
-        self.residues_to_graft = []
+        self.residues_to_graft = CDRGrafting.find_cdr_residues(self.kabat_seq)
+
+    @staticmethod
+    def find_cdr_residues(kabat_seq):
+        mode = kabat_seq.kabat_list[0][0][0]
+        loop_regions = [KabatNumbering.L_1, KabatNumbering.L_2, KabatNumbering.L_3]\
+            if mode == 'L' else [KabatNumbering.H_1, KabatNumbering.H_2, KabatNumbering.H_3]
+        cdr_residues = []
         for b, e in loop_regions:
             for i in xrange(b[0], e[0] + 1):
                 kabat = (i, '')
-                if kabat in self.kabat_seq.kabat_dict:
-                    self.residues_to_graft.append(self.kabat_seq.kabat_dict[kabat])
-                search_alpha = CDRGrafting._ALPHABET
+                if kabat in kabat_seq.kabat_dict:
+                    cdr_residues.append(kabat_seq.kabat_dict[kabat])
+                search_alpha = KabatNumbering.ALPHABET
                 if i == e[0]:
-                    search_alpha = CDRGrafting._ALPHABET[:operator.indexOf(CDRGrafting._ALPHABET, e[1]) + 1]\
+                    search_alpha = KabatNumbering.ALPHABET[:operator.indexOf(KabatNumbering.ALPHABET, e[1]) + 1]\
                         if e[1] != '' else []
                 for letter in search_alpha:
                     kabat = (i, letter)
-                    if kabat in self.kabat_seq.kabat_dict:
-                        self.residues_to_graft.append(self.kabat_seq.kabat_dict[kabat])
+                    if kabat in kabat_seq.kabat_dict:
+                        cdr_residues.append(kabat_seq.kabat_dict[kabat])
+        return cdr_residues
 
 
 class SDRGrafting(Grafting):
