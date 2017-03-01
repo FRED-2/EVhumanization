@@ -248,6 +248,19 @@ class CDRGrafting(Grafting):
 
     @staticmethod
     def find_cdr_residues(kabat_seq):
+        """Extract residues being part of CDRs.
+
+        Parameters
+        ----------
+        kabat_seq : `KabatNumbering`
+            Kabat numbering of the sequence of interest.
+
+        Returns
+        -------
+        cdr_residues : list of int
+            Numbers of residues being part of CDRs.
+
+        """
         mode = kabat_seq.kabat_list[0][0][0]
         loop_regions = [KabatNumbering.L_1, KabatNumbering.L_2, KabatNumbering.L_3]\
             if mode == 'L' else [KabatNumbering.H_1, KabatNumbering.H_2, KabatNumbering.H_3]
