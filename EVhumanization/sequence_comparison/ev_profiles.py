@@ -12,21 +12,22 @@ different ways:
     p_i = h_i(\sigma_i^s) + 0.5 * sum_j=1^n e_ij(\sigma_i^s, \sigma_j^s)
 
 """
-
+import os
 import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+
 from argparse import ArgumentParser
+
 import numpy as np
 from Bio import SeqIO
-from Bio import AlignIO
 from Bio import pairwise2
-from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
+from Bio.SubsMat.MatrixInfo import blosum62
 from scipy.spatial import distance
+from EVhumanization.utilities.smart_tools import smart_open, split_args
 
-from utilities.ev_couplings_v4 import EVcouplings
+from EVhumanization.utilities import EVcouplings
 from ev_couplings_modified import ModifiedEVcouplings, ModificationMode
-from smart_tools import smart_open, split_args
 
 
 class SequenceProfile(object):

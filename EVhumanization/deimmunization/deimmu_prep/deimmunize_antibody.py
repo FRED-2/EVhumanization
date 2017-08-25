@@ -8,17 +8,20 @@ the corresponding murine amino acid is allowed. (2) Amino acids similiar to the
 murine one are also considered.
 
 """
-
+import os
 import sys
-from argparse import ArgumentParser
 import ConfigParser
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+
+from argparse import ArgumentParser
+
 from Bio import AlignIO
 from Bio import SeqIO
 
-from utilities.ev_couplings_v4 import EVcouplings
+from EVhumanization.utilities.ev_couplings_v4 import EVcouplings
+from EVhumanization.utilities.smart_tools import split_args
 from abstract_deimmu_prep import AbstractDeimmuPreparation
-from smart_tools import split_args
-
 
 _SMALL_HYDROPHOBIC_AA = list('AG')
 _LARGE_HYDROPHOBIC_AA = list('VLIMPFW')

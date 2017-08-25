@@ -6,14 +6,88 @@ filling the attribute `possible_mutations`.
 
 """
 
-import sys
 import subprocess
 from abc import ABCMeta, abstractmethod
 
+import numpy as np
+
+from EVhumanization.utilities import ALPHABET_PROTEIN_NOGAP
 from alleles import AlleleCollection
-from wildtype import Wildtype
-from utilities.ev_couplings_v4 import ALPHABET_PROTEIN_NOGAP
 from tools import to_data_format
+from wildtype import Wildtype
+
+
+def _independent_model(f_i, lambda_h, N_eff, L, num_symbols):
+        """
+        Estimate parameters of a single-site model using
+        Gaussian prior/L2 regularization.
+        Parameters
+        ----------
+        N : float
+            Effective (reweighted) number of sequences
+        lambda_h : float
+            Strength of L2 regularization on h_i parameters
+        Returns
+        -------
+        CouplingsModel
+            Copy of object turned into independent model
+        """
+        from scipy.optimize import fmin_bfgs
+
+        def _log_post(x, *args):
+            """
+            Log posterior of single-site model
+            """
+            (fi, lambda_h, N) = args
+            logZ = np.log(np.exp(x).sum())
+            return N * (logZ - (fi * x).sum()) + lambda_h * ((x ** 2).sum())
+
+        def _gradient(x, *args):
+            """
+            Gradient of single-site model
+            """
+            (fi, lambda_h, N) = args
+            Z = np.exp(x).sum()
+            P = np.exp(x) / Z
+            return N * (P - fi) + lambda_h * 2 * x
+
+        h_i = np.zeros((L, num_symbols))
+
+        for i in range(L):
+            x0 = np.zeros((num_symbols))
+            h_i[i] = fmin_bfgs(
+                _log_post, x0, _gradient,
+                args=(f_i[i], lambda_h, N_eff),
+                disp=False
+            )
+
+        return h_i
+
+
+def _frequencies(matrix, ev_couplings):
+    """
+    Calculate single-site frequencies of symbols in alignment
+    Parameters
+    ----------
+
+    Returns
+    -------
+    np.array
+        Matrix of size L x num_symbols containing relative
+        column frequencies of all characters
+    """
+
+    N, L = matrix.shape
+    num_symb = ev_couplings.num_symbols
+    fi = np.zeros((L, num_symb))
+    for s in range(N):
+        for i in range(L):
+            #print(s,i, ev_couplings.num_symbols)
+            aa = matrix[s, i].upper()
+            if aa not in ["-", ".", "X", "B", "Z"]:
+                fi[i, ev_couplings.alphabet_map[aa]] += 1
+
+    return fi / N
 
 
 class AbstractDeimmuPreparation(object):
@@ -74,7 +148,14 @@ class AbstractDeimmuPreparation(object):
         self.allele_coll = AlleleCollection(config)
         self.wildtype = Wildtype.create(alignment, ev_couplings)
         self.wildtype.predict_epitope_positions(self.allele_coll, self.epitope_length)
-        self.wildtype.print_epitope_prediction(self.excluded_pos, self.ignored_pos)
+        #self.wildtype.print_epitope_prediction(self.excluded_pos, self.ignored_pos)
+        if self.use_single_site_model:
+            matrix = np.array([list(rec) for rec in alignment])
+            N,L = matrix.shape
+            self.f_i = _frequencies(matrix, ev_couplings)
+            self.single_hi = _independent_model(self.f_i, float(config.get('parameters', 'lamdba_h')),
+                                                N, L, ev_couplings.num_symbols)
+
 
     @abstractmethod
     def set_possible_mutations(self):
@@ -109,7 +190,7 @@ class AbstractDeimmuPreparation(object):
             if ex_pos[0] != '' else []
         self.ignored_pos = map(lambda x: int(x.strip()) - 1, ig_pos)\
             if ig_pos[0] != '' else []
-
+        self.use_single_site_model = config.get('parameters', "single_site").lower() in ("yes", "true", "t", "1")
         print 'Number of mutations: param k = %i' % self.num_mutations
         print 'Epitope length: %i' % self.epitope_length
         print 'Excluded positions: %s' % self.excluded_pos
@@ -124,17 +205,30 @@ class AbstractDeimmuPreparation(object):
             e_ij binaries read in, generated from `alignment`.
 
         """
+
+        self.hi_indices = [i for i in self.wildtype.upper if i not in self.ignored_pos]
+
         self.hi = {}
-        for i in self.wildtype.epitope_pos:
+        for i in self.wildtype.upper:
             for ai in filter(lambda x: x != '-', ev_couplings.alphabet_map.keys()):
                 self.hi[(i, ai)] = -1.0 * ev_couplings.h_i[
                     ev_couplings.index_map[self.wildtype.map_to_uniprot(i)],
                     ev_couplings.alphabet_map[ai]
                 ]
+
+        if self.use_single_site_model:
+            for i in self.wildtype.lower:
+                if i not in self.ignored_pos:
+                    self.hi_indices.append(i)
+                    for ai in filter(lambda x: x != '-', ev_couplings.alphabet_map.keys()):
+                        self.hi[(i, ai)] = -1.0*self.single_hi[i, ev_couplings.alphabet_map[ai]]
+
+        self.hi_indices.sort()
+
         self.eij_indices = sorted(set(
             [(i, j) if i < j else (j, i)
-             for i in self.wildtype.epitope_pos
-             for j in self.wildtype.epitope_pos
+             for i in self.wildtype.upper
+             for j in self.wildtype.upper
              if i != j and ((i < j and i not in self.ignored_pos) or
                             (j < i and j not in self.ignored_pos))]
         ))
@@ -142,7 +236,7 @@ class AbstractDeimmuPreparation(object):
         for i, j in self.eij_indices:
             for ai in self.possible_mutations[i]:
                 for aj in self.possible_mutations[j]:
-                    self.eij[(i, j, ai, aj)] = -1.0 * ev_couplings.e_ij[
+                    self.eij[(i, j, ai, aj)] = -1.0 * ev_couplings.J_ij[
                         ev_couplings.index_map[self.wildtype.map_to_uniprot(i)],
                         ev_couplings.index_map[self.wildtype.map_to_uniprot(j)],
                         ev_couplings.alphabet_map[ai],
@@ -173,7 +267,7 @@ class AbstractDeimmuPreparation(object):
 
             f.write('##################################\n#\n# Sets II\n#\n##################################\n\n')
             f.write(to_data_format('set', 'Eij', self.format_eij_indices()))
-            f.write(to_data_format('set', 'E', self.wildtype.to_set_E()) + '\n')
+            f.write(to_data_format('set', 'E', self.format_hi_indices()) + '\n')
             for i in xrange(len(self.wildtype.sequence)):
                 f.write(to_data_format('set', 'WT[%i]' % (i + 1), self.wildtype.sequence[i]))
             for i in xrange(len(self.wildtype.sequence)):
@@ -193,10 +287,13 @@ class AbstractDeimmuPreparation(object):
     def format_hi(self):
         """Convert h_i fields to data format."""
         return '\n' + '\n'.join(str(i + 1) + ' ' + ' '.join(
-            str(self.hi[i, aa])
-            for aa in list(ALPHABET_PROTEIN_NOGAP))
-            for i in self.wildtype.epitope_pos
+            str(self.hi[i, aa]) for aa in list(ALPHABET_PROTEIN_NOGAP))
+            for i in self.hi_indices
         )
+
+    def format_hi_indices(self):
+        """Return predicted epitope positions as string."""
+        return '\t'.join(str(i + 1) for i in self.hi_indices)
 
     def format_eij(self):
         """Convert e_ij pair couplings to data format."""

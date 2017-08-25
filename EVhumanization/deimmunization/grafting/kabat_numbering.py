@@ -6,15 +6,16 @@ the Kabat numbering scheme.
 Service at address: http://www.bioinf.org.uk/cgi-bin/abnum.
 
 """
-
+import os
 import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+
 from HTMLParser import HTMLParser
 from urllib import urlopen
-import argparse
 from Bio import SeqIO
 from collections import defaultdict
 
-from smart_tools import smart_open
+from EVhumanization.utilities.smart_tools import smart_open
 
 
 class SimpleTextParser(HTMLParser):

@@ -9,12 +9,9 @@ Three modification modes are supported:
 
 """
 
-import sys
 import numpy as np
-from collections import defaultdict
-from copy import deepcopy
 
-from utilities.ev_couplings_v4 import EVcouplings
+from EVhumanization.utilities import EVcouplings
 
 
 class ModificationMode():

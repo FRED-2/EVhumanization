@@ -6,7 +6,7 @@ of the wildtype sequence.
 """
 
 import sys
-from multiprocessing import Pool, cpu_count
+
 from collections import defaultdict
 from Bio import pairwise2
 from Bio.SubsMat.MatrixInfo import blosum62
@@ -118,7 +118,7 @@ class Wildtype(object):
         """
         wildtype = cls(alignment[0].id, str(alignment[0].seq))
         wildtype.calc_offsets(ev_couplings)
-        print '%s\n' % wildtype
+        #print '%s\n' % wildtype
         return wildtype
 
     def calc_offsets(self, ev_couplings):
@@ -139,6 +139,15 @@ class Wildtype(object):
             if self.sequence[i].isupper():
                 self.internal_offset = i
                 break
+
+        self.upper = []
+        self.lower = []
+        for i in xrange(len(self.sequence)):
+            if self.sequence[i].isupper():
+                self.upper.append(i)
+            else:
+                self.lower.append(i)
+
         self.sequence = self.sequence.upper()
 
     def predict_epitope_positions(self, allele_coll, epitope_length):
@@ -157,8 +166,7 @@ class Wildtype(object):
                  for k, v in allele.pssm.iteritems()}
 
         # get starting positions of epitopes (with specified alleles)
-        pool = Pool(cpu_count())
-        self.epitope_start_pos_alleles = pool.map(
+        self.epitope_start_pos_alleles = map(
             _predictstart,
             [(_tepitope_pred, (i, self.sequence[i: i + epitope_length], pssms,
                                allele.name, allele.pssm_thresh))
@@ -287,6 +295,6 @@ class Wildtype(object):
         """Return length of the wildtype sequence as string."""
         return str(len(self.sequence))
 
-    def to_set_E(self):
+    def to_set_Ep(self):
         """Return predicted epitope positions as string."""
         return ' '.join(str(i + 1) for i in self.epitope_pos)

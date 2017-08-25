@@ -1,10 +1,11 @@
 from collections import defaultdict
 from tempfile import mkstemp
-import sys
 import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+
 import numpy
 from os import system
-from math import fabs
 
 _NUM_DIGITS = 3
 _LARGE_DISTANCE = 100000.0

@@ -13,8 +13,10 @@ to be grafted can be specified manually.
 
 """
 
-import sys
 import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+
 from abc import ABCMeta, abstractmethod
 import operator
 from argparse import ArgumentParser
@@ -29,7 +31,7 @@ from Bio.SubsMat import MatrixInfo as matlist
 
 from kabat_numbering import KabatNumbering
 from contacts_from_structure import download_pdb_file, make_contact_map
-from smart_tools import smart_open
+from EVhumanization.utilities.smart_tools import smart_open
 
 
 class Grafting(object):

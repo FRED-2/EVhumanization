@@ -1,13 +1,15 @@
+import os
 import sys
-from argparse import ArgumentParser
-from Bio import SeqIO
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+
 import time
+from argparse import ArgumentParser
 
+from Bio import SeqIO
+from EVhumanization.sequence_comparison.ev_couplings_modified import ModifiedEVcouplings, ModificationMode
+
+from EVhumanization.utilities import EVcouplings
 from ev_profiles import SequenceProfile
-from ev_profiles import EVprofiles
-
-from utilities.ev_couplings_v4 import EVcouplings
-from ev_couplings_normalized import ModifiedEVcouplings, ModificationMode
 
 
 def precalculate_profiles(human_seqs, eij_filename, out,
