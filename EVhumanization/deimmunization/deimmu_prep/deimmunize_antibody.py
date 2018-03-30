@@ -24,14 +24,17 @@ from EVhumanization.utilities.smart_tools import split_args
 from abstract_deimmu_prep import AbstractDeimmuPreparation
 
 _SMALL_HYDROPHOBIC_AA = list('AG')
-_LARGE_HYDROPHOBIC_AA = list('VLIMPFW')
-_POLAR_AA = list('STNQCY')
+_HYDROXYLIC_AA = list('STC')
+_ACIDIC_AA = list('NQ')
 _POS_CHARGED_AA = list('KRH')
 _NEG_CHARGED_AA = list('DE')
-_AROMATIC = list('HFWY')
+_AROMATIC_AA = list('FWY')
+_ALIPHATIC_AA = list('VLIM')
+_PROLINE = list('P')
 
-_ALL_AA = [_SMALL_HYDROPHOBIC_AA, _LARGE_HYDROPHOBIC_AA, _POLAR_AA,
-           _POS_CHARGED_AA, _NEG_CHARGED_AA, _AROMATIC]
+_ALL_AA = [_SMALL_HYDROPHOBIC_AA, _HYDROXYLIC_AA, _ACIDIC_AA,
+           _POS_CHARGED_AA, _NEG_CHARGED_AA, _AROMATIC_AA,
+           _ALIPHATIC_AA, _PROLINE]
 
 
 def _get_aa_list(aa):
