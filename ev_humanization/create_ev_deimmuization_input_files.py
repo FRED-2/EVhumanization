@@ -151,9 +151,13 @@ def main():
         f.write("\n")
 
         # Kabat numbering of the wild type
-        kabat_numbering = utils.retrieve_kabat_numbering(
-            wild_type.upper()
-        )
+        if args.kabat:
+            with open(args.kabat) as g:
+                kabat_numbering = utils.read_kabat_numbering(g.read().strip())
+        else:
+            kabat_numbering = utils.retrieve_kabat_numbering(
+                wild_type.upper()
+            )
 
         # amino acid frequencies in antibodies
         aa_freqs = pickle.load(open(freq_file, "rb"))
@@ -245,6 +249,8 @@ def parse_args():
                         help="amino acid frequency threshold used to determine allowed mutations")
     parser.add_argument("--ev_file_format", "-f", choices=["plmc_v1", "plmc_v2"], default="plmc_v2",
                         help="file format of EVcouplings model file (default: 'plmc_v2')")
+    parser.add_argument("--kabat", "-k", help="kabat numbering (as txt file where one line describes one position "
+                                              "following this format: <H/L><Kabat number> <amino acid>)")
 
     return parser.parse_args()
 

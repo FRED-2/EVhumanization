@@ -1,3 +1,4 @@
+import sys
 import requests
 from Bio import pairwise2
 from Bio.SubsMat import MatrixInfo
@@ -7,11 +8,26 @@ ABNUM_URL = "http://www.bioinf.org.uk/cgi-bin/abnum/abnum.pl?plain=1&aaseq={}&sc
 
 def retrieve_kabat_numbering(seq):
     # get Kabat numbering from AbNum server
-    raw = requests.get(ABNUM_URL.format(seq)).text
+    response = requests.get(ABNUM_URL.format(seq))
 
+    if not response.ok:
+        sys.exit(
+            "The Abnum server used for Kabat numbering could not be reached.\n"
+            "You might want to check your internet connection."
+        )
+
+    if not response.text.strip():
+        sys.exit(
+            "Kabat numbering could not be retrieved from the Abnum server.\n"
+            "Please consider providing the Kabat nunbering yourself."
+        )
+
+    return read_kabat_numbering(response.text.strip())
+
+
+def read_kabat_numbering(kabat_str):
     numbering = []
-    for line in raw.strip().split("\n"):
-        kabat_num, aa = line.split()
+    for line in kabat_str.split("\n"):
         split = line.split()
         aa = split[-1]
         kabat_num = "".join(split[: -1])
