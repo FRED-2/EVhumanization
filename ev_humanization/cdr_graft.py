@@ -88,10 +88,12 @@ def parse_args():
         description="Graft CDRs of the query sequence onto the framework regions of the template"
     )
 
-    parser.add_argument("query", help="query sequence")
-    parser.add_argument("template", help="(human) template sequence")
-    parser.add_argument("chain", choices=["heavy", "light"], help="heavy/light variable antibody chain")
-    parser.add_argument("out", help="path to out file (*.fasta)")
+    # required arguments
+    parser.add_argument("--query", "-q", required=True, help="query sequence")
+    parser.add_argument("--template", "-t", required=True, help="(human) template sequence")
+    parser.add_argument("--chain", "-v", required=True, choices=["heavy", "light"],
+                        help="heavy/light variable antibody chain")
+    parser.add_argument("--out", "-o", required=True, help="path to out file (*.fasta)")
 
     return parser.parse_args()
 

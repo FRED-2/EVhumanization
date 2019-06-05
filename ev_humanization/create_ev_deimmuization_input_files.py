@@ -229,13 +229,18 @@ def parse_args():
         description="Generate specification files necessary to run EVdeimmunization"
     )
 
-    parser.add_argument("alignment", help="alignment in fasta format that served as input to EVcouplings")
-    parser.add_argument("model", help="binary eij couplings file with the CDR grafted sequence as target")
-    parser.add_argument("config", help="config file in YAML format")
-    parser.add_argument("chain", choices=["heavy", "light"], help="heavy/light variable antibody chain")
-    parser.add_argument("out_basename", help="basename of out file (multiple files will be created "
-                                             "with appropriate extensions added)")
+    # required arguments
+    parser.add_argument("--alignment", "-a", required=True,
+                        help="alignment in fasta format that served as input to EVcouplings")
+    parser.add_argument("--model", "-m", required=True,
+                        help="binary eij couplings file with the CDR grafted sequence as target")
+    parser.add_argument("--config", "-c", required=True, help="config file in YAML format")
+    parser.add_argument("--chain", "-v", required=True, choices=["heavy", "light"],
+                        help="heavy/light variable antibody chain")
+    parser.add_argument("--out_basename", "-o", required=True,
+                        help="basename of out file (multiple files will be created with appropriate extensions added)")
 
+    # optional arguments
     parser.add_argument("--freq_thresh", "-t", type=float, default=0.01,
                         help="amino acid frequency threshold used to determine allowed mutations")
     parser.add_argument("--ev_file_format", "-f", choices=["plmc_v1", "plmc_v2"], default="plmc_v2",

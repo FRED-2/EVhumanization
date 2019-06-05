@@ -90,12 +90,15 @@ def parse_args():
         description="Human template search by pairwise comparison of evolutionary profiles"
     )
 
-    parser.add_argument("alignment", help="alignment in fasta format that served as input to EVcouplings")
-    parser.add_argument("model", help="binary eij couplings file")
-    parser.add_argument("query", help="(non-human) query sequence in fasta format")
-    parser.add_argument("human_seqs", help="human sequences in fasta format")
-    parser.add_argument("out", help="path to out file (*.csv)")
-
+    # required arguments
+    parser.add_argument("--alignment", "-a", required=True,
+                        help="alignment in fasta format that served as input to EVcouplings")
+    parser.add_argument("--model", "-m", required=True, help="binary eij couplings file")
+    parser.add_argument("--query", "-q", required=True, help="(non-human) query sequence in fasta format")
+    parser.add_argument("--human_seqs", "-h", required=True, help="human sequences in fasta format")
+    parser.add_argument("--out", "-o", required=True, help="path to out file (*.csv)")
+    
+    # optional arguments
     parser.add_argument("--top", "-t", type=int, help="number of top sequences written to file "
                                                       "(by default, all sequences are written to file)")
     parser.add_argument("--ev_file_format", "-f", choices=["plmc_v1", "plmc_v2"], default="plmc_v2",
