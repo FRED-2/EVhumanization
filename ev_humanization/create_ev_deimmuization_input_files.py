@@ -46,6 +46,14 @@ def main():
         file_format=args.ev_file_format
     )
 
+    # compute internal offset of the sequence's numbering
+    n_lower = 0
+    for aa in wild_type:
+        if aa.isupper():
+            break
+        n_lower += 1
+    offset = min(ev_couplings.index_list) - n_lower
+
     # read in alleles
     alleles = pd.read_csv(
         config["sets"]["allele_file"],
@@ -117,8 +125,8 @@ def main():
 
         # valid indices of the model
         model_inds = [
-            i + 1 for i, aa in enumerate(wild_type)
-            if aa.isupper() and i not in config["sets"]["ignore_pos"]
+            ind for ind in ev_couplings.index_list
+            if ind not in config["sets"]["ignore_pos"]
         ]
 
         # valid pair indices of the model
@@ -130,16 +138,16 @@ def main():
         ))
 
         # pair indices
-        eij_inds_str = "\t".join(map(lambda t: f"{t[0]} {t[1]}", eij_inds))
+        eij_inds_str = "\t".join(map(lambda t: f"{t[0] - offset + 1} {t[1] - offset + 1}", eij_inds))
         f.write(f"set Eij := {eij_inds_str};\n")
 
         # single indices
-        hi_inds_str = "\t".join(map(str, model_inds))
+        hi_inds_str = "\t".join(map(lambda ind: str(ind - offset + 1), model_inds))
         f.write(f"set E := {hi_inds_str};\n\n")
 
         # wild type sequence
-        for i, aa in enumerate(wild_type):
-            f.write(f"set WT[{i + 1}] := {aa.upper()};\n")
+        for i, aa in enumerate(wild_type, start=1):
+            f.write(f"set WT[{i}] := {aa.upper()};\n")
         f.write("\n")
 
         # Kabat numbering of the wild type
@@ -167,8 +175,8 @@ def main():
                     )
 
         # allowed mutations per position
-        for i, muts in enumerate(mutations):
-            f.write(f"set M[{i + 1}] := {' '.join(muts)};\n")
+        for i, muts in enumerate(mutations, start=1):
+            f.write(f"set M[{i}] := {' '.join(muts)};\n")
         f.write("\n")
 
         # single site EV parameters
@@ -181,14 +189,14 @@ def main():
                 ]
         f.write(f"param h: {' '.join(list(ALPHABET_PROTEIN_NOGAP))} :=\n")
         for i in model_inds:
-            f.write(str(i) + "\t" + " ".join(str(hi[i, aa]) for aa in ALPHABET_PROTEIN_NOGAP) + "\n")
+            f.write(str(i - offset + 1) + "\t" + " ".join(str(hi[i, aa]) for aa in ALPHABET_PROTEIN_NOGAP) + "\n")
         f.write(";\n\n")
 
         # evolutionary couplings
         eij = {}
         for i, j in eij_inds:
-            for ai in mutations[i - 1]:
-                for aj in mutations[j - 1]:
+            for ai in mutations[i - offset]:
+                for aj in mutations[j - offset]:
                     eij[(i, j, ai, aj)] = -1.0 * ev_couplings.J_ij[
                         ev_couplings.index_map[i],
                         ev_couplings.index_map[j],
@@ -197,9 +205,9 @@ def main():
                     ]
         f.write("param eij :=\n")
         for i, j in eij_inds:
-            mut_list = list(mutations[j - 1])
-            f.write(f"[{i},{j},*,*]: {' '.join(mut_list)} :=\n")
-            for ai in mutations[i - 1]:
+            mut_list = list(mutations[j - offset])
+            f.write(f"[{i - offset + 1},{j - offset + 1},*,*]: {' '.join(mut_list)} :=\n")
+            for ai in mutations[i - offset]:
                 f.write(ai + "\t" + " ".join(str(eij[i, j, ai, aj]) for aj in mut_list) + "\n")
         f.write(";\n\n")
         f.write("end;")
